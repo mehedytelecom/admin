@@ -1519,7 +1519,7 @@ export default function App() {
           <div>
             <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Branding Banner</h3>
             <div className="space-y-4">
-              <div className="w-full flex justify-center">
+              <div className="w-full relative h-24 rounded-xl overflow-hidden border border-gray-100 shadow-inner">
                 <BannerBranding fileId={bannerFileId} />
               </div>
               <div className="relative">
