@@ -86,7 +86,18 @@ const SummaryItem = ({ icon: Icon, label, value, colorClass, symbol = "" }: { ic
 );
 
 const TelegramImage: React.FC<{ fileId: string }> = ({ fileId }) => {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(() => {
+    const cached = localStorage.getItem(`tg_file_${fileId}`);
+    if (cached) {
+      try {
+        const { url, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 3600000) return url;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -106,7 +117,19 @@ const TelegramImage: React.FC<{ fileId: string }> = ({ fileId }) => {
 }
 
 const BannerBranding: React.FC<{ fileId: string | null }> = ({ fileId }) => {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!fileId) return null;
+    const cached = localStorage.getItem(`tg_file_${fileId}`);
+    if (cached) {
+      try {
+        const { url, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 3600000) return url;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
 
   useEffect(() => {
     if (fileId) {

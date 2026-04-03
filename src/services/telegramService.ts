@@ -40,6 +40,21 @@ export async function uploadImageToTelegram(
 }
 
 export async function getTelegramImageUrl(fileId: string): Promise<string> {
+  // Check cache first
+  const cacheKey = `tg_file_${fileId}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const { url, timestamp } = JSON.parse(cached);
+      // Cache valid for 1 hour
+      if (Date.now() - timestamp < 3600000) {
+        return url;
+      }
+    } catch (e) {
+      localStorage.removeItem(cacheKey);
+    }
+  }
+
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
   const data = await response.json();
   
@@ -48,5 +63,13 @@ export async function getTelegramImageUrl(fileId: string): Promise<string> {
   }
 
   const filePath = data.result.file_path;
-  return `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+  const url = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+
+  // Save to cache
+  localStorage.setItem(cacheKey, JSON.stringify({
+    url,
+    timestamp: Date.now()
+  }));
+
+  return url;
 }
