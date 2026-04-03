@@ -53,7 +53,7 @@ import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }) => (
   <AnimatePresence>
     {isOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -105,6 +105,37 @@ const TelegramImage: React.FC<{ fileId: string }> = ({ fileId }) => {
   );
 }
 
+const BannerBranding: React.FC<{ fileId: string | null }> = ({ fileId }) => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (fileId) {
+      getTelegramImageUrl(fileId).then(setUrl);
+    } else {
+      setUrl(null);
+    }
+  }, [fileId]);
+
+  return (
+    <div className="absolute inset-0 w-full h-full overflow-hidden transition-all duration-700">
+      {url ? (
+        <>
+          <img 
+            src={url} 
+            alt="Banner" 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/20 to-transparent" />
+        </>
+      ) : (
+        <div className="w-full h-full bg-gradient-to-r from-blue-600 to-blue-400 opacity-20" />
+      )}
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -121,8 +152,10 @@ export default function App() {
   const [isSaleListOpen, setIsSaleListOpen] = useState(false);
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
   const [isMobileBazarOpen, setIsMobileBazarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [bannerFileId, setBannerFileId] = useState<string | null>(null);
 
   // Form States
   const [productSearch, setProductSearch] = useState('');
@@ -189,10 +222,17 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'mobile_bazar');
     });
 
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'shop'), (doc) => {
+      if (doc.exists()) {
+        setBannerFileId(doc.data().banner_file_id);
+      }
+    });
+
     return () => {
       unsubProducts();
       unsubSales();
       unsubMobileBazar();
+      unsubSettings();
     };
   }, [user]);
 
@@ -205,6 +245,36 @@ export default function App() {
   };
 
   const handleLogout = () => signOut(auth);
+
+  const handleUpdateBanner = async (file: File) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const fileId = await uploadImageToTelegram(file, (percent) => {
+        setUploadProgress(prev => ({ ...prev, 'banner': percent }));
+      });
+      await updateDoc(doc(db, 'settings', 'shop'), {
+        banner_file_id: fileId
+      }).catch(async () => {
+        // If doc doesn't exist, create it
+        const { setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'settings', 'shop'), {
+          banner_file_id: fileId
+        });
+      });
+      alert('Banner updated successfully!');
+    } catch (error) {
+      console.error('Failed to update banner:', error);
+      alert('Failed to update banner');
+    } finally {
+      setIsSubmitting(false);
+      setUploadProgress(prev => {
+        const next = { ...prev };
+        delete next['banner'];
+        return next;
+      });
+    }
+  };
 
   // Summary Stats
   const stats = useMemo(() => {
@@ -543,21 +613,33 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-20 overflow-hidden">
+        <BannerBranding fileId={bannerFileId} />
+        <div className="relative z-10 w-full px-4 sm:px-6 h-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 rounded-xl">
+            <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200">
               <ShoppingCart className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Mehedy Telecom</h1>
+            <h1 className="text-xl font-black text-gray-900 tracking-tight">Mehedy Telecom</h1>
           </div>
-          <div className="flex items-center gap-4">
+          
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2.5 bg-white/80 hover:bg-white backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-all text-gray-600 hover:text-blue-600"
+              title="Shop Settings"
+            >
+              <ImageIcon className="w-6 h-6" />
+            </button>
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-sm font-bold text-gray-900">{user.displayName}</span>
-              <span className="text-xs text-gray-500">{user.email}</span>
+              <span className="text-xs text-gray-600">{user.email}</span>
             </div>
-            <button onClick={handleLogout} className="p-2 hover:bg-red-50 rounded-full transition-colors group">
-              <LogOut className="w-6 h-6 text-gray-400 group-hover:text-red-500" />
+            <button 
+              onClick={handleLogout} 
+              className="p-2.5 bg-white/80 hover:bg-red-50 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-all group"
+            >
+              <LogOut className="w-6 h-6 text-gray-500 group-hover:text-red-600" />
             </button>
           </div>
         </div>
@@ -1203,67 +1285,6 @@ export default function App() {
         </div>
       </Modal>
 
-      {/* Edit Sale Modal */}
-      <Modal 
-        isOpen={!!editingSale} 
-        onClose={() => setEditingSale(null)} 
-        title="Edit Sale Record"
-      >
-        {editingSale && (
-          <form onSubmit={handleEditSale} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
-              <input 
-                required
-                type="text"
-                value={editingSale.customer_name}
-                onChange={e => setEditingSale({...editingSale, customer_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Phone</label>
-                <input 
-                  required
-                  type="tel"
-                  value={editingSale.phone_number}
-                  onChange={e => setEditingSale({...editingSale, phone_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">NID</label>
-                <input 
-                  required
-                  type="text"
-                  value={editingSale.nid_number}
-                  onChange={e => setEditingSale({...editingSale, nid_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Profit (৳)</label>
-              <input 
-                required
-                type="number"
-                value={editingSale.profit}
-                onChange={e => setEditingSale({...editingSale, profit: Number(e.target.value)})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <button 
-              disabled={isSubmitting}
-              type="submit"
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
-            </button>
-          </form>
-        )}
-      </Modal>
-
       {/* Sale List Modal */}
       <Modal 
         isOpen={isSaleListOpen} 
@@ -1425,6 +1446,117 @@ export default function App() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Edit Sale Modal */}
+      <Modal 
+        isOpen={!!editingSale} 
+        onClose={() => setEditingSale(null)} 
+        title="Edit Sale Record"
+      >
+        {editingSale && (
+          <form onSubmit={handleEditSale} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
+              <input 
+                required
+                type="text"
+                value={editingSale.customer_name}
+                onChange={e => setEditingSale({...editingSale, customer_name: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Phone</label>
+                <input 
+                  required
+                  type="tel"
+                  value={editingSale.phone_number}
+                  onChange={e => setEditingSale({...editingSale, phone_number: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">NID</label>
+                <input 
+                  required
+                  type="text"
+                  value={editingSale.nid_number}
+                  onChange={e => setEditingSale({...editingSale, nid_number: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Profit (৳)</label>
+              <input 
+                required
+                type="number"
+                value={editingSale.profit}
+                onChange={e => setEditingSale({...editingSale, profit: Number(e.target.value)})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <button 
+              disabled={isSubmitting}
+              type="submit"
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
+            </button>
+          </form>
+        )}
+      </Modal>
+
+      {/* Shop Settings Modal */}
+      <Modal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        title="Shop Settings"
+      >
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Branding Banner</h3>
+            <div className="space-y-4">
+              <div className="w-full flex justify-center">
+                <BannerBranding fileId={bannerFileId} />
+              </div>
+              <div className="relative">
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUpdateBanner(file);
+                  }}
+                  className="hidden" 
+                  id="banner-upload"
+                  disabled={isSubmitting}
+                />
+                <label 
+                  htmlFor="banner-upload"
+                  className="flex items-center justify-center gap-2 w-full py-4 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold rounded-xl border-2 border-dashed border-gray-200 cursor-pointer transition-all"
+                >
+                  {isSubmitting && uploadProgress['banner'] ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      <span className="text-xs text-blue-600">{uploadProgress['banner']}%</span>
+                    </div>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-5 h-5" />
+                      {bannerFileId ? "Change Banner" : "Upload Banner"}
+                    </>
+                  )}
+                </label>
+              </div>
+              <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest">
+                This banner will be displayed in the header branding area.
+              </p>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

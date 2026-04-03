@@ -14,7 +14,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
          (request.auth.token.email == "mehedyhossain160619@gmail.com" && request.auth.token.email_verified == true));
     }
 
@@ -56,6 +56,10 @@ service cloud.firestore {
              data.created_at is string;
     }
 
+    function isValidSettings(data) {
+      return (!('banner_file_id' in data) || (data.banner_file_id is string && data.banner_file_id.size() < 100));
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -80,6 +84,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
     }
   }
 }

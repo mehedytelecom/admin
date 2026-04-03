@@ -52,6 +52,14 @@
         "created_at": { "type": "string", "format": "date-time" }
       },
       "required": ["sale_id", "customer_name", "product_name", "down_payment", "sale_profit", "net_amount", "created_at"]
+    },
+    "ShopSettings": {
+      "title": "ShopSettings",
+      "description": "Shop branding and settings",
+      "type": "object",
+      "properties": {
+        "banner_file_id": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -66,6 +74,10 @@
     "mobile_bazar": {
       "schema": "MobileBazarRecord",
       "description": "Collection of Mobile Bazar records"
+    },
+    "settings": {
+      "schema": "ShopSettings",
+      "description": "Shop settings like branding banner"
     }
   }
 }
