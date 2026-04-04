@@ -20,7 +20,8 @@ import {
   Trash2,
   Edit2,
   BarChart3,
-  ArrowDownCircle
+  ArrowDownCircle,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -146,11 +147,11 @@ const BannerBranding: React.FC<{ fileId: string | null }> = ({ fileId }) => {
           <img 
             src={url} 
             alt="Banner" 
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center sm:object-[50%_35%]"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-black/10" />
-          <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/20 to-transparent" />
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/40 to-transparent" />
         </>
       ) : (
         <div className="w-full h-full bg-gradient-to-r from-blue-600 to-blue-400 opacity-20" />
@@ -200,6 +201,9 @@ const LogoBranding: React.FC<{ fileId: string | null; className?: string }> = ({
   );
 };
 
+// --- Constants ---
+const ADMIN_EMAIL = 'mehedyhossain160619@gmail.com';
+
 // --- Main App ---
 
 export default function App() {
@@ -209,6 +213,7 @@ export default function App() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
   
+  const isSuperAdmin = user?.email === ADMIN_EMAIL;
   // Modals
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
@@ -708,9 +713,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-20 overflow-hidden">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-24 sm:h-32 overflow-hidden shadow-sm">
         <BannerBranding fileId={bannerFileId} />
-        <div className="relative z-10 w-full px-4 sm:px-6 h-full flex items-center justify-between gap-4">
+        <div className="relative z-10 w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <LogoBranding fileId={logoFileId} className="w-10 h-10" />
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Mehedy Telecom</h1>
@@ -848,10 +853,11 @@ export default function App() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-500 text-sm font-bold uppercase tracking-wider">
+              <thead className="bg-gray-50 text-gray-500 text-[10px] sm:text-xs font-black uppercase tracking-widest">
                 <tr>
                   <th className="px-4 sm:px-6 py-4">Product Name</th>
                   <th className="px-4 sm:px-6 py-4">Variant</th>
+                  <th className="px-4 sm:px-6 py-4">Date Added</th>
                   <th className="px-4 sm:px-6 py-4">Purchase</th>
                   <th className="px-4 sm:px-6 py-4">Selling</th>
                   <th className="px-4 sm:px-6 py-4">Profit/Pcs</th>
@@ -866,7 +872,13 @@ export default function App() {
                     <td className="px-4 sm:px-6 py-4 text-gray-500 text-sm">
                       {product.ram && product.rom ? `${product.ram}/${product.rom}` : '-'}
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-gray-600">৳{product.purchase_price}</td>
+                    <td className="px-4 sm:px-6 py-4 text-gray-400 text-xs">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {product.created_at ? format(parseISO(product.created_at), 'dd MMM yyyy') : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 text-gray-600 font-medium">৳{product.purchase_price}</td>
                     <td className="px-4 sm:px-6 py-4 text-gray-600">৳{product.selling_price}</td>
                     <td className="px-4 sm:px-6 py-4 text-emerald-600 font-bold">৳{product.profit_margin}</td>
                     <td className="px-4 sm:px-6 py-4">
@@ -919,7 +931,7 @@ export default function App() {
               </tbody>
               <tfoot className="bg-gray-50 border-t-2 border-gray-100">
                 <tr>
-                  <td colSpan={2} className="px-4 sm:px-6 py-4 font-black text-gray-900 uppercase tracking-wider">Total Stock Summary</td>
+                  <td colSpan={3} className="px-4 sm:px-6 py-4 font-black text-gray-900 uppercase tracking-wider">Total Stock Summary</td>
                   <td className="px-4 sm:px-6 py-4 font-black text-blue-600">৳{stats.totalStockValue}</td>
                   <td colSpan={1}></td>
                   <td className="px-4 sm:px-6 py-4 font-black text-emerald-600">৳{stats.totalPotentialProfit}</td>
@@ -1659,40 +1671,46 @@ export default function App() {
             <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Logo / Profile Picture</h3>
             <div className="flex items-center gap-6">
               <LogoBranding fileId={logoFileId} className="w-24 h-24" />
-              <div className="flex-1 space-y-3">
-                <div className="relative">
-                  <input 
-                    type="file" 
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUpdateLogo(file);
-                    }}
-                    className="hidden" 
-                    id="logo-upload"
-                    disabled={isSubmitting}
-                  />
-                  <label 
-                    htmlFor="logo-upload"
-                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl border border-blue-100 cursor-pointer transition-all"
-                  >
-                    {isSubmitting && uploadProgress['logo'] ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-xs">{uploadProgress['logo']}%</span>
-                      </div>
-                    ) : (
-                      <>
-                        <User className="w-4 h-4" />
-                        {logoFileId ? "Change Logo" : "Upload Logo"}
-                      </>
-                    )}
-                  </label>
+              {isSuperAdmin ? (
+                <div className="flex-1 space-y-3">
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUpdateLogo(file);
+                      }}
+                      className="hidden" 
+                      id="logo-upload"
+                      disabled={isSubmitting}
+                    />
+                    <label 
+                      htmlFor="logo-upload"
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl border border-blue-100 cursor-pointer transition-all"
+                    >
+                      {isSubmitting && uploadProgress['logo'] ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-xs">{uploadProgress['logo']}%</span>
+                        </div>
+                      ) : (
+                        <>
+                          <User className="w-4 h-4" />
+                          {logoFileId ? "Change Logo" : "Upload Logo"}
+                        </>
+                      )}
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-relaxed">
+                    This logo will appear next to your shop name in the header and on the login screen.
+                  </p>
                 </div>
-                <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-relaxed">
-                  This logo will appear next to your shop name in the header and on the login screen.
-                </p>
-              </div>
+              ) : (
+                <div className="flex-1">
+                  <p className="text-sm text-gray-500 italic">Only the shop owner can change the logo.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1705,35 +1723,39 @@ export default function App() {
               <div className="w-full relative h-24 rounded-xl overflow-hidden border border-gray-100 shadow-inner">
                 <BannerBranding fileId={bannerFileId} />
               </div>
-              <div className="relative">
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUpdateBanner(file);
-                  }}
-                  className="hidden" 
-                  id="banner-upload"
-                  disabled={isSubmitting}
-                />
-                <label 
-                  htmlFor="banner-upload"
-                  className="flex items-center justify-center gap-2 w-full py-4 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold rounded-xl border-2 border-dashed border-gray-200 cursor-pointer transition-all"
-                >
-                  {isSubmitting && uploadProgress['banner'] ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                      <span className="text-xs text-blue-600">{uploadProgress['banner']}%</span>
-                    </div>
-                  ) : (
-                    <>
-                      <ImageIcon className="w-5 h-5" />
-                      {bannerFileId ? "Change Banner" : "Upload Banner"}
-                    </>
-                  )}
-                </label>
-              </div>
+              {isSuperAdmin ? (
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpdateBanner(file);
+                    }}
+                    className="hidden" 
+                    id="banner-upload"
+                    disabled={isSubmitting}
+                  />
+                  <label 
+                    htmlFor="banner-upload"
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold rounded-xl border-2 border-dashed border-gray-200 cursor-pointer transition-all"
+                  >
+                    {isSubmitting && uploadProgress['banner'] ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                        <span className="text-xs text-blue-600">{uploadProgress['banner']}%</span>
+                      </div>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-5 h-5" />
+                        {bannerFileId ? "Change Banner" : "Upload Banner"}
+                      </>
+                    )}
+                  </label>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic text-center">Only the shop owner can change the banner.</p>
+              )}
               <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest">
                 This banner will be displayed in the header branding area.
               </p>
