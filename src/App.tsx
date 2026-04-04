@@ -159,6 +159,47 @@ const BannerBranding: React.FC<{ fileId: string | null }> = ({ fileId }) => {
   );
 };
 
+const LogoBranding: React.FC<{ fileId: string | null; className?: string }> = ({ fileId, className }) => {
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!fileId) return null;
+    const cached = localStorage.getItem(`tg_file_${fileId}`);
+    if (cached) {
+      try {
+        const { url, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 3600000) return url;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (fileId) {
+      getTelegramImageUrl(fileId).then(setUrl);
+    } else {
+      setUrl(null);
+    }
+  }, [fileId]);
+
+  if (!url) return (
+    <div className={`bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 ${className}`}>
+      <ShoppingCart className="w-6 h-6 text-white" />
+    </div>
+  );
+
+  return (
+    <div className={`rounded-xl overflow-hidden shadow-lg shadow-blue-100 ${className}`}>
+      <img 
+        src={url} 
+        alt="Logo" 
+        className="w-full h-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -179,6 +220,7 @@ export default function App() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [bannerFileId, setBannerFileId] = useState<string | null>(null);
+  const [logoFileId, setLogoFileId] = useState<string | null>(null);
 
   // Form States
   const [productSearch, setProductSearch] = useState('');
@@ -248,6 +290,7 @@ export default function App() {
     const unsubSettings = onSnapshot(doc(db, 'settings', 'shop'), (doc) => {
       if (doc.exists()) {
         setBannerFileId(doc.data().banner_file_id);
+        setLogoFileId(doc.data().logo_file_id);
       }
     });
 
@@ -294,6 +337,35 @@ export default function App() {
       setUploadProgress(prev => {
         const next = { ...prev };
         delete next['banner'];
+        return next;
+      });
+    }
+  };
+
+  const handleUpdateLogo = async (file: File) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const fileId = await uploadImageToTelegram(file, (percent) => {
+        setUploadProgress(prev => ({ ...prev, 'logo': percent }));
+      });
+      await updateDoc(doc(db, 'settings', 'shop'), {
+        logo_file_id: fileId
+      }).catch(async () => {
+        const { setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'settings', 'shop'), {
+          logo_file_id: fileId
+        });
+      });
+      alert('Logo updated successfully!');
+    } catch (error) {
+      console.error('Failed to update logo:', error);
+      alert('Failed to update logo');
+    } finally {
+      setIsSubmitting(false);
+      setUploadProgress(prev => {
+        const next = { ...prev };
+        delete next['logo'];
         return next;
       });
     }
@@ -618,9 +690,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white p-10 rounded-3xl shadow-xl w-full max-w-md text-center"
         >
-          <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200">
-            <ShoppingCart className="w-10 h-10 text-white" />
-          </div>
+          <LogoBranding fileId={logoFileId} className="w-20 h-20 mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Mehedy Telecom</h1>
           <p className="text-gray-500 mb-8">Manage your inventory and sales efficiently</p>
           <button 
@@ -642,9 +712,7 @@ export default function App() {
         <BannerBranding fileId={bannerFileId} />
         <div className="relative z-10 w-full px-4 sm:px-6 h-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200">
-              <ShoppingCart className="w-6 h-6 text-white" />
-            </div>
+            <LogoBranding fileId={logoFileId} className="w-10 h-10" />
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Mehedy Telecom</h1>
           </div>
           
@@ -1585,7 +1653,52 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)} 
         title="Shop Settings"
       >
-        <div className="space-y-6">
+        <div className="space-y-8">
+          {/* Logo Section */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Logo / Profile Picture</h3>
+            <div className="flex items-center gap-6">
+              <LogoBranding fileId={logoFileId} className="w-24 h-24" />
+              <div className="flex-1 space-y-3">
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUpdateLogo(file);
+                    }}
+                    className="hidden" 
+                    id="logo-upload"
+                    disabled={isSubmitting}
+                  />
+                  <label 
+                    htmlFor="logo-upload"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl border border-blue-100 cursor-pointer transition-all"
+                  >
+                    {isSubmitting && uploadProgress['logo'] ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-xs">{uploadProgress['logo']}%</span>
+                      </div>
+                    ) : (
+                      <>
+                        <User className="w-4 h-4" />
+                        {logoFileId ? "Change Logo" : "Upload Logo"}
+                      </>
+                    )}
+                  </label>
+                </div>
+                <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-relaxed">
+                  This logo will appear next to your shop name in the header and on the login screen.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100" />
+
+          {/* Banner Section */}
           <div>
             <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Branding Banner</h3>
             <div className="space-y-4">

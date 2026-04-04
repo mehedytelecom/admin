@@ -58,7 +58,8 @@
       "description": "Shop branding and settings",
       "type": "object",
       "properties": {
-        "banner_file_id": { "type": "string" }
+        "banner_file_id": { "type": "string" },
+        "logo_file_id": { "type": "string" }
       }
     }
   },
