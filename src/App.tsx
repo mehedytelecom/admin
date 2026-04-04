@@ -224,6 +224,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editSaleImages, setEditSaleImages] = useState<File[]>([]);
   const [bannerFileId, setBannerFileId] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
 
@@ -564,18 +565,36 @@ export default function App() {
     setIsSubmitting(true);
 
     try {
+      let updatedImageFileIds = [...editingSale.image_file_ids];
+
+      // Upload new images if any
+      if (editSaleImages.length > 0) {
+        const newImageFileIds = await Promise.all(
+          editSaleImages.map(file => 
+            uploadImageToTelegram(file, (percent) => {
+              setUploadProgress(prev => ({ ...prev, [file.name]: percent }));
+            })
+          )
+        );
+        updatedImageFileIds = [...updatedImageFileIds, ...newImageFileIds];
+      }
+
       await updateDoc(doc(db, 'sales', editingSale.id), {
         customer_name: editingSale.customer_name,
         phone_number: editingSale.phone_number,
         nid_number: editingSale.nid_number,
         address: editingSale.address,
         guarantor_number: editingSale.guarantor_number,
-        profit: Number(editingSale.profit)
+        profit: Number(editingSale.profit),
+        image_file_ids: updatedImageFileIds
       });
       setEditingSale(null);
+      setEditSaleImages([]);
+      setUploadProgress({});
       setSelectedSale(null);
     } catch (error) {
       console.error('Failed to update sale:', error);
+      alert('Failed to update sale. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1601,7 +1620,10 @@ export default function App() {
       {/* Edit Sale Modal */}
       <Modal 
         isOpen={!!editingSale} 
-        onClose={() => setEditingSale(null)} 
+        onClose={() => {
+          setEditingSale(null);
+          setEditSaleImages([]);
+        }} 
         title="Edit Sale Record"
       >
         {editingSale && (
@@ -1648,6 +1670,65 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Update Images</h3>
+              
+              {/* Existing Images */}
+              <div className="grid grid-cols-3 gap-2">
+                {editingSale.image_file_ids.map((fileId, idx) => (
+                  <div key={idx} className="relative group">
+                    <TelegramImage fileId={fileId} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newIds = editingSale.image_file_ids.filter((_, i) => i !== idx);
+                        setEditingSale({...editingSale, image_file_ids: newIds});
+                      }}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Upload New */}
+              <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*"
+                  onChange={e => {
+                    if (e.target.files) {
+                      setEditSaleImages(Array.from(e.target.files));
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-xs font-bold text-gray-600">Add more images</p>
+                {editSaleImages.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {editSaleImages.map((f, i) => (
+                      <div key={i} className="flex flex-col gap-1">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-600">
+                          <span className="truncate max-w-[150px]">{f.name}</span>
+                          <span>{uploadProgress[f.name] || 0}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-blue-600 h-full transition-all duration-300"
+                            style={{ width: `${uploadProgress[f.name] || 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <button 
               disabled={isSubmitting}
               type="submit"
