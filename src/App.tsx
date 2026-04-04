@@ -311,6 +311,8 @@ export default function App() {
       monthlyCount: monthlySales.length,
       monthlyProfit: monthlySales.reduce((acc, s) => acc + s.profit, 0),
       totalProducts: products.length,
+      totalStockValue: products.reduce((acc, p) => acc + (p.purchase_price * p.quantity), 0),
+      totalPotentialProfit: products.reduce((acc, p) => acc + (p.profit_margin * p.quantity), 0),
       mobileBazarTotal
     };
   }, [sales, products, mobileBazarRecords]);
@@ -847,7 +849,52 @@ export default function App() {
                   </tr>
                 )}
               </tbody>
+              <tfoot className="bg-gray-50 border-t-2 border-gray-100">
+                <tr>
+                  <td colSpan={2} className="px-4 sm:px-6 py-4 font-black text-gray-900 uppercase tracking-wider">Total Stock Summary</td>
+                  <td className="px-4 sm:px-6 py-4 font-black text-blue-600">৳{stats.totalStockValue}</td>
+                  <td colSpan={1}></td>
+                  <td className="px-4 sm:px-6 py-4 font-black text-emerald-600">৳{stats.totalPotentialProfit}</td>
+                  <td colSpan={2} className="px-4 sm:px-6 py-4 font-black text-gray-900">
+                    {products.reduce((acc, p) => acc + p.quantity, 0)} Pcs Total
+                  </td>
+                </tr>
+              </tfoot>
             </table>
+          </div>
+        </div>
+        <div className="h-px bg-gray-200 mb-8" />
+
+        {/* Stock Summary Section */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-4 bg-blue-50 rounded-2xl">
+              <Package className="w-8 h-8 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Stock Value</p>
+              <p className="text-2xl font-black text-gray-900">৳{stats.totalStockValue}</p>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-4 bg-emerald-50 rounded-2xl">
+              <TrendingUp className="w-8 h-8 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Potential Profit</p>
+              <p className="text-2xl font-black text-emerald-600">৳{stats.totalPotentialProfit}</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-4 bg-purple-50 rounded-2xl">
+              <ShoppingCart className="w-8 h-8 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Quantity</p>
+              <p className="text-2xl font-black text-gray-900">{products.reduce((acc, p) => acc + p.quantity, 0)} Pcs</p>
+            </div>
           </div>
         </div>
       </main>
