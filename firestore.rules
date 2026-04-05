@@ -72,30 +72,23 @@ service cloud.firestore {
     // ===============================================================
 
     match /products/{productId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     match /sales/{saleId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidSale(request.resource.data);
-      allow update, delete: if isAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     match /mobile_bazar/{recordId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidMobileBazar(request.resource.data);
-      allow update, delete: if isAdmin();
+      allow read, write: if isSuperAdmin();
     }
     
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId) || isAdmin();
+      allow read, write: if isSuperAdmin();
     }
 
     match /settings/{settingId} {
-      allow read: if isAuthenticated();
-      allow write: if isSuperAdmin() && isValidSettings(request.resource.data);
+      allow read, write: if isSuperAdmin();
     }
   }
 }

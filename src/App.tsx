@@ -23,7 +23,7 @@ import {
   ArrowDownCircle,
   Clock
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -76,13 +76,59 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose:
   </AnimatePresence>
 );
 
-const SummaryItem = ({ icon: Icon, label, value, colorClass, symbol = "" }: { icon?: any; label: string; value: string | number; colorClass: string; symbol?: string }) => (
+const Counter = ({ value, prefix = "", suffix = "" }: { value: number; prefix?: string; suffix?: string }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration: 1.5,
+      ease: "easeOut",
+      onUpdate: (latest) => setDisplayValue(Math.round(latest)),
+    });
+    return controls.stop;
+  }, [value]);
+
+  return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
+};
+
+const SummaryItem = ({ icon: Icon, label, value, colorClass, symbol = "", prefix = "", suffix = "" }: { icon?: any; label: string; value: string | number; colorClass: string; symbol?: string; prefix?: string; suffix?: string }) => (
   <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
     <div className={`p-3 rounded-full mb-3 ${colorClass}`}>
       {Icon ? <Icon className="w-6 h-6 text-white" /> : <span className="text-xl font-bold text-white leading-none">{symbol}</span>}
     </div>
     <span className="text-sm font-medium text-gray-500 mb-1">{label}</span>
-    <span className="text-lg font-bold text-gray-900">{value}</span>
+    <span className="text-lg font-bold text-gray-900">
+      {typeof value === 'number' ? <Counter value={value} prefix={prefix} suffix={suffix} /> : value}
+    </span>
+  </div>
+);
+
+const RestrictedAccess = ({ user, onLogout }: { user: FirebaseUser; onLogout: () => void }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center border border-red-100"
+    >
+      <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+        <ShieldCheck className="w-10 h-10 text-red-500" />
+      </div>
+      <h2 className="text-2xl font-black text-gray-900 mb-2">Access Restricted</h2>
+      <p className="text-gray-500 mb-8 leading-relaxed">
+        Hello <span className="font-bold text-gray-700">{user.displayName || user.email}</span>, this dashboard is reserved for the administrator only. Your current account does not have permission to view this data.
+      </p>
+      <div className="space-y-4">
+        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-600">
+          Logged in as: <span className="font-mono font-bold">{user.email}</span>
+        </div>
+        <button 
+          onClick={onLogout}
+          className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
+        >
+          <LogOut className="w-5 h-5" /> Sign Out
+        </button>
+      </div>
+    </motion.div>
   </div>
 );
 
@@ -729,6 +775,10 @@ export default function App() {
     );
   }
 
+  if (!isSuperAdmin) {
+    return <RestrictedAccess user={user} onLogout={handleLogout} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
@@ -825,7 +875,8 @@ export default function App() {
               <SummaryItem 
                 symbol="৳" 
                 label="Today Profit" 
-                value={`৳${stats.todayProfit}`} 
+                value={stats.todayProfit} 
+                prefix="৳"
                 colorClass="bg-emerald-500" 
               />
               <SummaryItem 
@@ -837,13 +888,15 @@ export default function App() {
               <SummaryItem 
                 symbol="৳" 
                 label="Monthly Profit" 
-                value={`৳${stats.monthlyProfit}`} 
+                value={stats.monthlyProfit} 
+                prefix="৳"
                 colorClass="bg-orange-500" 
               />
               <SummaryItem 
                 symbol="৳" 
                 label="Mobile Bazar" 
-                value={`৳${stats.mobileBazarTotal}`} 
+                value={stats.mobileBazarTotal} 
+                prefix="৳"
                 colorClass="bg-blue-600" 
               />
             </div>
@@ -951,11 +1004,11 @@ export default function App() {
               <tfoot className="bg-gray-50 border-t-2 border-gray-100">
                 <tr>
                   <td colSpan={3} className="px-4 sm:px-6 py-4 font-black text-gray-900 uppercase tracking-wider">Total Stock Summary</td>
-                  <td className="px-4 sm:px-6 py-4 font-black text-blue-600">৳{stats.totalStockValue}</td>
+                  <td className="px-4 sm:px-6 py-4 font-black text-blue-600">৳<Counter value={stats.totalStockValue} /></td>
                   <td colSpan={1}></td>
-                  <td className="px-4 sm:px-6 py-4 font-black text-emerald-600">৳{stats.totalPotentialProfit}</td>
+                  <td className="px-4 sm:px-6 py-4 font-black text-emerald-600">৳<Counter value={stats.totalPotentialProfit} /></td>
                   <td colSpan={2} className="px-4 sm:px-6 py-4 font-black text-gray-900">
-                    {products.reduce((acc, p) => acc + p.quantity, 0)} Pcs Total
+                    <Counter value={products.reduce((acc, p) => acc + p.quantity, 0)} suffix=" Pcs Total" />
                   </td>
                 </tr>
               </tfoot>
@@ -972,7 +1025,7 @@ export default function App() {
             </div>
             <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Stock Value</p>
-              <p className="text-2xl font-black text-gray-900">৳{stats.totalStockValue}</p>
+              <p className="text-2xl font-black text-gray-900">৳<Counter value={stats.totalStockValue} /></p>
             </div>
           </div>
           
@@ -982,7 +1035,7 @@ export default function App() {
             </div>
             <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Potential Profit</p>
-              <p className="text-2xl font-black text-emerald-600">৳{stats.totalPotentialProfit}</p>
+              <p className="text-2xl font-black text-emerald-600">৳<Counter value={stats.totalPotentialProfit} /></p>
             </div>
           </div>
 
@@ -992,7 +1045,9 @@ export default function App() {
             </div>
             <div>
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Quantity</p>
-              <p className="text-2xl font-black text-gray-900">{products.reduce((acc, p) => acc + p.quantity, 0)} Pcs</p>
+              <p className="text-2xl font-black text-gray-900">
+                <Counter value={products.reduce((acc, p) => acc + p.quantity, 0)} suffix=" Pcs" />
+              </p>
             </div>
           </div>
         </div>
