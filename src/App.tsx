@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, 
   Package, 
@@ -461,6 +461,17 @@ export default function App() {
   };
 
   // Summary Stats
+  const calculateDynamicProfit = useCallback((sale: Sale) => {
+    const product = products.find(p => p.id === sale.product_id);
+    if (product) {
+      // If it's a cash sale or has actual_sale_price, use that.
+      // Otherwise use product's current selling price.
+      const sellingPrice = sale.actual_sale_price || product.selling_price;
+      return sellingPrice - product.purchase_price;
+    }
+    return sale.profit; // Fallback to stored profit
+  }, [products]);
+
   const currentMonthSales = useMemo(() => {
     const now = new Date();
     return sales
@@ -479,20 +490,31 @@ export default function App() {
   const stats = useMemo(() => {
     const todaySales = sales.filter(s => isToday(parseISO(s.sale_date)));
     const monthlySales = sales.filter(s => isSameMonth(parseISO(s.sale_date), new Date()));
-    const mobileBazarTotal = mobileBazarRecords.reduce((acc, r) => acc + r.net_amount, 0);
+    
+    const todayProfit = todaySales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
+    const monthlyProfit = monthlySales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
+    
+    const mobileBazarTotal = mobileBazarRecords.reduce((acc, r) => {
+      const sale = sales.find(s => s.id === r.sale_id);
+      if (sale) {
+        const profit = calculateDynamicProfit(sale);
+        return acc + (r.down_payment - profit);
+      }
+      return acc + r.net_amount;
+    }, 0);
 
     return {
       todayCount: todaySales.length,
-      todayProfit: todaySales.reduce((acc, s) => acc + s.profit, 0),
+      todayProfit,
       monthlyCount: monthlySales.length,
-      monthlyProfit: monthlySales.reduce((acc, s) => acc + s.profit, 0),
+      monthlyProfit,
       monthlyTotalSale: currentMonthTotal,
       totalProducts: products.length,
       totalQuantity: products.reduce((acc, p) => acc + p.quantity, 0),
       totalStockValue: products.reduce((acc, p) => acc + (p.purchase_price * p.quantity), 0),
       mobileBazarTotal
     };
-  }, [sales, products, mobileBazarRecords, currentMonthTotal]);
+  }, [sales, products, mobileBazarRecords, currentMonthTotal, calculateDynamicProfit]);
 
   // Actions
   const handleDeleteProduct = async (id: string) => {
@@ -787,20 +809,20 @@ export default function App() {
       const date = format(parseISO(s.sale_date), 'yyyy-MM-dd');
       return date >= reportStartDate && date <= reportEndDate;
     });
-    const totalProfit = reportSales.reduce((acc, s) => acc + s.profit, 0);
+    const totalProfit = reportSales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
     const totalSales = reportSales.length;
 
     return { totalSales, totalProfit, reportSales };
-  }, [sales, reportStartDate, reportEndDate]);
+  }, [sales, reportStartDate, reportEndDate, calculateDynamicProfit]);
 
   const mobileBazarPreview = useMemo(() => {
     const sale = sales.find(s => s.id === newMobileBazar.sale_id);
     if (!sale || !newMobileBazar.down_payment) return null;
-    const profit = sale.profit;
+    const profit = calculateDynamicProfit(sale);
     const downPayment = Number(newMobileBazar.down_payment);
     const net = downPayment - profit;
     return { profit, downPayment, net };
-  }, [newMobileBazar, sales]);
+  }, [newMobileBazar, sales, calculateDynamicProfit]);
 
   if (loading) {
     return (
@@ -1527,7 +1549,7 @@ export default function App() {
                     <p className="font-bold text-emerald-600 text-sm">
                       ৳{(s.actual_sale_price || products.find(p => p.id === s.product_id)?.selling_price || 0).toLocaleString()}
                     </p>
-                    <p className="text-[9px] text-orange-500 font-bold">Profit: ৳{s.profit}</p>
+                    <p className="text-[9px] text-orange-500 font-bold">Profit: ৳{calculateDynamicProfit(s).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -1617,21 +1639,27 @@ export default function App() {
               </div>
             </div>
             <div className="max-h-[250px] overflow-y-auto space-y-2">
-              {mobileBazarRecords.map(r => (
-                <div key={r.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-gray-900 text-sm">{r.customer_name}</p>
-                    <p className="text-xs text-gray-500">
-                      {r.product_name} {(r.ram || r.rom) ? `(${r.ram || ''}${r.ram && r.rom ? '/' : ''}${r.rom || ''})` : ''}
-                    </p>
-                    <p className="text-[10px] text-gray-400">{format(parseISO(r.created_at), 'dd/MM/yyyy - hh:mm a')}</p>
+              {mobileBazarRecords.map(r => {
+                const sale = sales.find(s => s.id === r.sale_id);
+                const dynamicProfit = sale ? calculateDynamicProfit(sale) : r.sale_profit;
+                const dynamicNetAmount = sale ? (r.down_payment - dynamicProfit) : r.net_amount;
+                
+                return (
+                  <div key={r.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">{r.customer_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {r.product_name} {(r.ram || r.rom) ? `(${r.ram || ''}${r.ram && r.rom ? '/' : ''}${r.rom || ''})` : ''}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{format(parseISO(r.created_at), 'dd/MM/yyyy - hh:mm a')}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-blue-600">৳{dynamicNetAmount}</p>
+                      <p className="text-[10px] text-gray-400">DP: ৳{r.down_payment} | Profit: ৳{dynamicProfit}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-blue-600">৳{r.net_amount}</p>
-                    <p className="text-[10px] text-gray-400">DP: ৳{r.down_payment} | Profit: ৳{r.sale_profit}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {mobileBazarRecords.length === 0 && (
                 <p className="text-center py-4 text-gray-400 text-sm">No records yet.</p>
               )}
@@ -1780,7 +1808,7 @@ export default function App() {
                     <TrendingUp className="w-5 h-5 text-orange-500 mt-0.5" />
                     <div>
                       <p className="text-xs text-gray-500">Profit Earned</p>
-                      <p className="font-bold text-orange-600">৳{selectedSale.profit}</p>
+                      <p className="font-bold text-orange-600">৳{calculateDynamicProfit(selectedSale).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
