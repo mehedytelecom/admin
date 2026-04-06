@@ -163,6 +163,42 @@ const TelegramImage: React.FC<{ fileId: string }> = ({ fileId }) => {
   );
 }
 
+const CustomerAvatar = ({ fileId }: { fileId?: string }) => {
+  const [url, setUrl] = useState<string | null>(() => {
+    if (!fileId) return null;
+    const cached = localStorage.getItem(`tg_file_${fileId}`);
+    if (cached) {
+      try {
+        const { url, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 3600000) return url;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (fileId) {
+      getTelegramImageUrl(fileId).then(setUrl);
+    }
+  }, [fileId]);
+
+  if (url) {
+    return (
+      <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shrink-0 shadow-sm">
+        <img src={url} alt="Customer" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center shrink-0 border border-gray-100">
+      <User className="w-6 h-6 text-gray-400" />
+    </div>
+  );
+};
+
 const BannerBranding: React.FC<{ fileId: string | null }> = ({ fileId }) => {
   const [url, setUrl] = useState<string | null>(() => {
     if (!fileId) return null;
@@ -276,7 +312,8 @@ export default function App() {
 
   // Form States
   const [productSearch, setProductSearch] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [reportStartDate, setReportStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
+  const [reportEndDate, setReportEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [newProduct, setNewProduct] = useState({
     id: '', // For updating existing
@@ -381,9 +418,9 @@ export default function App() {
         });
       });
       alert('Banner updated successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update banner:', error);
-      alert('Failed to update banner');
+      alert(`Failed to update banner: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
       setUploadProgress(prev => {
@@ -410,9 +447,9 @@ export default function App() {
         });
       });
       alert('Logo updated successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update logo:', error);
-      alert('Failed to update logo');
+      alert(`Failed to update logo: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
       setUploadProgress(prev => {
@@ -424,6 +461,21 @@ export default function App() {
   };
 
   // Summary Stats
+  const currentMonthSales = useMemo(() => {
+    const now = new Date();
+    return sales
+      .filter(s => isSameMonth(parseISO(s.sale_date), now))
+      .sort((a, b) => parseISO(b.sale_date).getTime() - parseISO(a.sale_date).getTime());
+  }, [sales]);
+
+  const currentMonthTotal = useMemo(() => {
+    return currentMonthSales.reduce((acc, s) => {
+      if (s.actual_sale_price) return acc + s.actual_sale_price;
+      const product = products.find(p => p.id === s.product_id);
+      return acc + (product?.selling_price || 0);
+    }, 0);
+  }, [currentMonthSales, products]);
+
   const stats = useMemo(() => {
     const todaySales = sales.filter(s => isToday(parseISO(s.sale_date)));
     const monthlySales = sales.filter(s => isSameMonth(parseISO(s.sale_date), new Date()));
@@ -434,12 +486,13 @@ export default function App() {
       todayProfit: todaySales.reduce((acc, s) => acc + s.profit, 0),
       monthlyCount: monthlySales.length,
       monthlyProfit: monthlySales.reduce((acc, s) => acc + s.profit, 0),
+      monthlyTotalSale: currentMonthTotal,
       totalProducts: products.length,
+      totalQuantity: products.reduce((acc, p) => acc + p.quantity, 0),
       totalStockValue: products.reduce((acc, p) => acc + (p.purchase_price * p.quantity), 0),
-      totalPotentialProfit: products.reduce((acc, p) => acc + (p.profit_margin * p.quantity), 0),
       mobileBazarTotal
     };
-  }, [sales, products, mobileBazarRecords]);
+  }, [sales, products, mobileBazarRecords, currentMonthTotal]);
 
   // Actions
   const handleDeleteProduct = async (id: string) => {
@@ -533,7 +586,8 @@ export default function App() {
         rom: product.rom || '',
         image_file_ids: imageFileIds,
         sale_date: new Date().toISOString(),
-        profit: product.profit_margin
+        profit: product.profit_margin,
+        actual_sale_price: product.selling_price
       });
 
       // 3. Decrease stock
@@ -552,9 +606,9 @@ export default function App() {
       });
       setUploadProgress({});
       setIsSaleProductOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to record sale:', error);
-      alert('Failed to record sale. Please try again.');
+      alert(`Failed to record sale: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -632,15 +686,16 @@ export default function App() {
         address: editingSale.address,
         guarantor_number: editingSale.guarantor_number,
         profit: Number(editingSale.profit),
+        actual_sale_price: Number(editingSale.actual_sale_price || 0),
         image_file_ids: updatedImageFileIds
       });
       setEditingSale(null);
       setEditSaleImages([]);
       setUploadProgress({});
       setSelectedSale(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update sale:', error);
-      alert('Failed to update sale. Please try again.');
+      alert(`Failed to update sale: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -728,12 +783,15 @@ export default function App() {
   }, [sales, saleSearch]);
 
   const monthlyReportStats = useMemo(() => {
-    const reportSales = sales.filter(s => format(parseISO(s.sale_date), 'yyyy-MM') === selectedMonth);
+    const reportSales = sales.filter(s => {
+      const date = format(parseISO(s.sale_date), 'yyyy-MM-dd');
+      return date >= reportStartDate && date <= reportEndDate;
+    });
     const totalProfit = reportSales.reduce((acc, s) => acc + s.profit, 0);
     const totalSales = reportSales.length;
 
     return { totalSales, totalProfit, reportSales };
-  }, [sales, selectedMonth]);
+  }, [sales, reportStartDate, reportEndDate]);
 
   const mobileBazarPreview = useMemo(() => {
     const sale = sales.find(s => s.id === newMobileBazar.sale_id);
@@ -862,9 +920,23 @@ export default function App() {
             <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               <SummaryItem 
                 icon={Package} 
-                label="Total Products" 
+                label="Total Items" 
                 value={stats.totalProducts} 
                 colorClass="bg-indigo-500" 
+              />
+              <SummaryItem 
+                icon={ShoppingCart} 
+                label="Total Quantity" 
+                value={stats.totalQuantity} 
+                suffix=" Pcs"
+                colorClass="bg-blue-600" 
+              />
+              <SummaryItem 
+                symbol="৳" 
+                label="Total Stock" 
+                value={stats.totalStockValue} 
+                prefix="৳"
+                colorClass="bg-blue-500" 
               />
               <SummaryItem 
                 icon={Calendar} 
@@ -887,6 +959,13 @@ export default function App() {
               />
               <SummaryItem 
                 symbol="৳" 
+                label="Monthly Total Sale" 
+                value={stats.monthlyTotalSale} 
+                prefix="৳"
+                colorClass="bg-emerald-600" 
+              />
+              <SummaryItem 
+                symbol="৳" 
                 label="Monthly Profit" 
                 value={stats.monthlyProfit} 
                 prefix="৳"
@@ -900,6 +979,76 @@ export default function App() {
                 colorClass="bg-blue-600" 
               />
             </div>
+          </div>
+        </div>
+
+        <div className="h-px bg-gray-200 mb-8" />
+
+        {/* Current Month Sales Card */}
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-emerald-600" />
+              Monthly Sales List ({format(new Date(), 'MMMM')})
+            </h2>
+            <div className="flex items-center gap-3">
+              <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border border-blue-100">
+                Count: {currentMonthSales.length}
+              </div>
+              <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold border border-emerald-100">
+                Total: ৳{currentMonthTotal.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          <div className="max-h-[500px] overflow-y-auto">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 text-gray-500 text-[10px] sm:text-xs font-black uppercase tracking-widest sticky top-0 z-10">
+                <tr>
+                  <th className="px-6 py-4">Model Number</th>
+                  <th className="px-6 py-4 text-right">Selling Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {currentMonthSales.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <Clock className="w-8 h-8 text-gray-300" />
+                        <p className="text-gray-400 italic">No sales recorded this month yet.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  currentMonthSales.map((sale) => (
+                    <tr key={sale.id} className="hover:bg-gray-50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                          {sale.product_name}
+                          {(sale.ram || sale.rom) && (
+                            <span className="ml-2 text-[10px] font-medium text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
+                              {sale.ram}/{sale.rom}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                            {format(parseISO(sale.sale_date), 'dd MMM')}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {format(parseISO(sale.sale_date), 'hh:mm a')}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="font-black text-emerald-600 text-lg">
+                          ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -1005,50 +1154,13 @@ export default function App() {
                 <tr>
                   <td colSpan={3} className="px-4 sm:px-6 py-4 font-black text-gray-900 uppercase tracking-wider">Total Stock Summary</td>
                   <td className="px-4 sm:px-6 py-4 font-black text-blue-600">৳<Counter value={stats.totalStockValue} /></td>
-                  <td colSpan={1}></td>
-                  <td className="px-4 sm:px-6 py-4 font-black text-emerald-600">৳<Counter value={stats.totalPotentialProfit} /></td>
+                  <td colSpan={2}></td>
                   <td colSpan={2} className="px-4 sm:px-6 py-4 font-black text-gray-900">
                     <Counter value={products.reduce((acc, p) => acc + p.quantity, 0)} suffix=" Pcs Total" />
                   </td>
                 </tr>
               </tfoot>
             </table>
-          </div>
-        </div>
-        <div className="h-px bg-gray-200 mb-8" />
-
-        {/* Stock Summary Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-4 bg-blue-50 rounded-2xl">
-              <Package className="w-8 h-8 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Stock Value</p>
-              <p className="text-2xl font-black text-gray-900">৳<Counter value={stats.totalStockValue} /></p>
-            </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-4 bg-emerald-50 rounded-2xl">
-              <TrendingUp className="w-8 h-8 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Potential Profit</p>
-              <p className="text-2xl font-black text-emerald-600">৳<Counter value={stats.totalPotentialProfit} /></p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-4 bg-purple-50 rounded-2xl">
-              <ShoppingCart className="w-8 h-8 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Quantity</p>
-              <p className="text-2xl font-black text-gray-900">
-                <Counter value={products.reduce((acc, p) => acc + p.quantity, 0)} suffix=" Pcs" />
-              </p>
-            </div>
           </div>
         </div>
       </main>
@@ -1367,14 +1479,25 @@ export default function App() {
         title="Monthly Sales Report"
       >
         <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-bold text-gray-700">Select Month:</label>
-            <input 
-              type="month"
-              value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
-              className="px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">From Date</label>
+              <input 
+                type="date"
+                value={reportStartDate}
+                onChange={e => setReportStartDate(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              />
+            </div>
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">To Date</label>
+              <input 
+                type="date"
+                value={reportEndDate}
+                onChange={e => setReportEndDate(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1395,9 +1518,17 @@ export default function App() {
                 <div key={s.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
                   <div>
                     <p className="font-bold text-gray-900 text-sm">{s.customer_name}</p>
-                    <p className="text-xs text-gray-500">{format(parseISO(s.sale_date), 'MMM dd')}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{format(parseISO(s.sale_date), 'dd/MM/yyyy')}</p>
                   </div>
-                  <p className="font-bold text-emerald-600">৳{s.profit}</p>
+                  <div className="text-right">
+                    <p className="font-bold text-emerald-600 text-sm">
+                      ৳{(s.actual_sale_price || products.find(p => p.id === s.product_id)?.selling_price || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[9px] text-orange-500 font-bold">Profit: ৳{s.profit}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1493,7 +1624,7 @@ export default function App() {
                     <p className="text-xs text-gray-500">
                       {r.product_name} {(r.ram || r.rom) ? `(${r.ram || ''}${r.ram && r.rom ? '/' : ''}${r.rom || ''})` : ''}
                     </p>
-                    <p className="text-[10px] text-gray-400">{format(parseISO(r.created_at), 'MMM dd, HH:mm')}</p>
+                    <p className="text-[10px] text-gray-400">{format(parseISO(r.created_at), 'dd/MM/yyyy - hh:mm a')}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-blue-600">৳{r.net_amount}</p>
@@ -1535,9 +1666,7 @@ export default function App() {
                 className="w-full flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:border-blue-200 hover:shadow-md transition-all group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center">
-                    <User className="w-6 h-6 text-gray-400" />
-                  </div>
+                  <CustomerAvatar fileId={sale.image_file_ids?.[0]} />
                   <div className="text-left">
                     <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
                     <p className="text-sm text-gray-500">{sale.phone_number}</p>
@@ -1547,9 +1676,16 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-bold text-gray-900">{sale.product_name}</p>
-                    <p className="text-xs text-gray-500">{format(parseISO(sale.sale_date), 'MMM dd, yyyy')}</p>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-emerald-600">
+                      ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
+                      {format(parseISO(sale.sale_date), 'dd/MM/yyyy')}
+                    </p>
+                    <p className="text-[9px] text-gray-400">
+                      {format(parseISO(sale.sale_date), 'hh:mm a')}
+                    </p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
                 </div>
@@ -1574,7 +1710,10 @@ export default function App() {
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</h3>
+                <div className="flex items-center gap-3">
+                  <CustomerAvatar fileId={selectedSale.image_file_ids?.[0]} />
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</h3>
+                </div>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
                     <User className="w-5 h-5 text-blue-500 mt-0.5" />
@@ -1631,15 +1770,24 @@ export default function App() {
                   <div className="flex items-start gap-3">
                     <TrendingUp className="w-5 h-5 text-emerald-500 mt-0.5" />
                     <div>
+                      <p className="text-xs text-gray-500">Selling Price</p>
+                      <p className="font-black text-emerald-600 text-lg">
+                        ৳{(selectedSale.actual_sale_price || products.find(p => p.id === selectedSale.product_id)?.selling_price || 0).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <TrendingUp className="w-5 h-5 text-orange-500 mt-0.5" />
+                    <div>
                       <p className="text-xs text-gray-500">Profit Earned</p>
-                      <p className="font-bold text-emerald-600">৳{selectedSale.profit}</p>
+                      <p className="font-bold text-orange-600">৳{selectedSale.profit}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-emerald-500 mt-0.5" />
                     <div>
-                      <p className="text-xs text-gray-500">Sale Date</p>
-                      <p className="font-bold text-gray-900">{format(parseISO(selectedSale.sale_date), 'MMMM dd, yyyy HH:mm')}</p>
+                      <p className="text-xs text-gray-500">Sale Date & Time</p>
+                      <p className="font-bold text-gray-900">{format(parseISO(selectedSale.sale_date), 'dd/MM/yyyy - hh:mm a')}</p>
                     </div>
                   </div>
                 </div>
@@ -1715,15 +1863,27 @@ export default function App() {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Profit (৳)</label>
-              <input 
-                required
-                type="number"
-                value={editingSale.profit}
-                onChange={e => setEditingSale({...editingSale, profit: Number(e.target.value)})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Selling Price (৳)</label>
+                <input 
+                  required
+                  type="number"
+                  value={editingSale.actual_sale_price || ''}
+                  onChange={e => setEditingSale({...editingSale, actual_sale_price: Number(e.target.value)})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Profit (৳)</label>
+                <input 
+                  required
+                  type="number"
+                  value={editingSale.profit}
+                  onChange={e => setEditingSale({...editingSale, profit: Number(e.target.value)})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
             </div>
 
             <div className="space-y-4">

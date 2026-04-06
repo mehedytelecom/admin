@@ -24,6 +24,7 @@ export interface Sale {
   image_file_ids: string[];
   sale_date: string;
   profit: number;
+  purchase_price?: number;
   actual_sale_price?: number;
   is_cash_sale?: boolean;
 }
