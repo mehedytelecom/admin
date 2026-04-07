@@ -7,6 +7,7 @@ export interface Product {
   quantity: number;
   ram?: string;
   rom?: string;
+  image_file_id?: string;
   created_at: string;
 }
 

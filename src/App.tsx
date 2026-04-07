@@ -322,7 +322,9 @@ export default function App() {
     selling_price: '',
     quantity: '',
     ram: '',
-    rom: ''
+    rom: '',
+    image: null as File | null,
+    image_file_id: ''
   });
   const [newSale, setNewSale] = useState({
     customer_name: '',
@@ -536,6 +538,13 @@ export default function App() {
       const sPrice = Number(newProduct.selling_price);
       const profit = sPrice - pPrice;
 
+      let imageFileId = newProduct.image_file_id;
+      if (newProduct.image) {
+        imageFileId = await uploadImageToTelegram(newProduct.image, (percent) => {
+          setUploadProgress(prev => ({ ...prev, 'product_image': percent }));
+        });
+      }
+
       if (newProduct.id) {
         // Update existing product
         await updateDoc(doc(db, 'products', newProduct.id), {
@@ -545,7 +554,8 @@ export default function App() {
           profit_margin: profit,
           quantity: increment(Number(newProduct.quantity)),
           ram: newProduct.ram,
-          rom: newProduct.rom
+          rom: newProduct.rom,
+          image_file_id: imageFileId
         });
       } else {
         // Add new product
@@ -557,11 +567,12 @@ export default function App() {
           quantity: Number(newProduct.quantity),
           ram: newProduct.ram,
           rom: newProduct.rom,
+          image_file_id: imageFileId,
           created_at: new Date().toISOString()
         });
       }
 
-      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '' });
+      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
       setIsAddProductOpen(false);
     } catch (error) {
       console.error('Failed to add/update product:', error);
@@ -899,7 +910,7 @@ export default function App() {
             <div className="flex flex-col gap-3 sm:gap-4">
               <button 
                 onClick={() => {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
                   setIsAddProductOpen(true);
                 }}
                 className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100"
@@ -1111,7 +1122,20 @@ export default function App() {
               <tbody className="divide-y divide-gray-100">
                 {filteredProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 sm:px-6 py-4 font-bold text-gray-900">{product.name}</td>
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                          {product.image_file_id ? (
+                            <TelegramImage fileId={product.image_file_id} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-5 h-5 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-bold text-gray-900">{product.name}</span>
+                      </div>
+                    </td>
                     <td className="px-4 sm:px-6 py-4 text-gray-500 text-sm">
                       {product.ram && product.rom ? `${product.ram}/${product.rom}` : '-'}
                     </td>
@@ -1144,7 +1168,9 @@ export default function App() {
                               selling_price: String(product.selling_price),
                               quantity: '0',
                               ram: product.ram || '',
-                              rom: product.rom || ''
+                              rom: product.rom || '',
+                              image: null,
+                              image_file_id: product.image_file_id || ''
                             });
                             setIsAddProductOpen(true);
                           }}
@@ -1209,11 +1235,13 @@ export default function App() {
                       selling_price: String(p.selling_price),
                       quantity: '', // Reset quantity for restock
                       ram: p.ram || '',
-                      rom: p.rom || ''
+                      rom: p.rom || '',
+                      image: null,
+                      image_file_id: p.image_file_id || ''
                     });
                   }
                 } else {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
                 }
               }}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -1235,6 +1263,44 @@ export default function App() {
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
               placeholder="e.g. iPhone 15 Pro"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Product Image</label>
+            <div className="flex items-center gap-4">
+              {newProduct.image_file_id && !newProduct.image && (
+                <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                  <TelegramImage fileId={newProduct.image_file_id} />
+                </div>
+              )}
+              {newProduct.image && (
+                <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                  <img src={URL.createObjectURL(newProduct.image)} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <ImageIcon className="w-5 h-5" />
+                    <span className="text-xs font-bold">{newProduct.image ? newProduct.image.name : "Choose Image"}</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) setNewProduct({...newProduct, image: file});
+                    }}
+                  />
+                </label>
+                {uploadProgress['product_image'] !== undefined && (
+                  <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${uploadProgress['product_image']}%` }} />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1391,6 +1457,26 @@ export default function App() {
                   <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
                 ))}
               </select>
+              {newSale.product_id && (
+                <div className="mt-4 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-gray-200 flex-shrink-0">
+                    {products.find(p => p.id === newSale.product_id)?.image_file_id ? (
+                      <TelegramImage fileId={products.find(p => p.id === newSale.product_id)!.image_file_id!} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-6 h-6 text-gray-300" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900">{products.find(p => p.id === newSale.product_id)?.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {products.find(p => p.id === newSale.product_id)?.ram}/{products.find(p => p.id === newSale.product_id)?.rom}
+                    </p>
+                    <p className="text-sm font-black text-blue-600 mt-1">৳{products.find(p => p.id === newSale.product_id)?.selling_price.toLocaleString()}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1462,6 +1548,26 @@ export default function App() {
                 <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
               ))}
             </select>
+            {cashSale.product_id && (
+              <div className="mt-4 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-gray-200 flex-shrink-0">
+                  {products.find(p => p.id === cashSale.product_id)?.image_file_id ? (
+                    <TelegramImage fileId={products.find(p => p.id === cashSale.product_id)!.image_file_id!} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="w-6 h-6 text-gray-300" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">{products.find(p => p.id === cashSale.product_id)?.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {products.find(p => p.id === cashSale.product_id)?.ram}/{products.find(p => p.id === cashSale.product_id)?.rom}
+                  </p>
+                  <p className="text-sm font-black text-blue-600 mt-1">৳{products.find(p => p.id === cashSale.product_id)?.selling_price.toLocaleString()}</p>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (৳)</label>
