@@ -333,11 +333,13 @@ export default function App() {
     address: '',
     guarantor_number: '',
     product_id: '',
-    images: [] as File[]
+    images: [] as File[],
+    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
   const [cashSale, setCashSale] = useState({
     product_id: '',
-    actual_sale_price: ''
+    actual_sale_price: '',
+    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
   const [newMobileBazar, setNewMobileBazar] = useState({
     sale_id: '',
@@ -618,7 +620,7 @@ export default function App() {
         ram: product.ram || '',
         rom: product.rom || '',
         image_file_ids: imageFileIds,
-        sale_date: new Date().toISOString(),
+        sale_date: new Date(newSale.sale_date).toISOString(),
         profit: product.profit_margin,
         actual_sale_price: product.selling_price
       });
@@ -635,7 +637,8 @@ export default function App() {
         address: '',
         guarantor_number: '',
         product_id: '',
-        images: []
+        images: [],
+        sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
       });
       setUploadProgress({});
       setIsSaleProductOpen(false);
@@ -673,7 +676,7 @@ export default function App() {
         ram: product.ram || '',
         rom: product.rom || '',
         image_file_ids: [],
-        sale_date: new Date().toISOString(),
+        sale_date: new Date(cashSale.sale_date).toISOString(),
         profit: profit,
         actual_sale_price: actualPrice,
         is_cash_sale: true
@@ -683,7 +686,11 @@ export default function App() {
         quantity: increment(-1)
       });
 
-      setCashSale({ product_id: '', actual_sale_price: '' });
+      setCashSale({ 
+        product_id: '', 
+        actual_sale_price: '',
+        sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm") 
+      });
       setIsCashSaleOpen(false);
     } catch (error) {
       console.error('Failed to record cash sale:', error);
@@ -873,33 +880,39 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-24 sm:h-32 overflow-hidden shadow-sm">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-20 sm:h-28 overflow-hidden shadow-md">
         <BannerBranding fileId={bannerFileId} />
-        <div className="relative z-10 w-full px-4 sm:px-8 h-full flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <LogoBranding fileId={logoFileId} className="w-10 h-10" />
-            <h1 className="text-xl font-black text-gray-900 tracking-tight">Mehedy Telecom</h1>
+        
+        {/* Action Buttons & User Info - Top Right */}
+        <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 flex items-center gap-1 sm:gap-3">
+          <div className="hidden lg:flex flex-col items-end mr-1">
+            <span className="text-[8px] font-black text-gray-900 uppercase tracking-wider bg-white/20 px-1 rounded">{user.displayName}</span>
           </div>
-          
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <button 
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2.5 bg-white/80 hover:bg-white backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-all text-gray-600 hover:text-blue-600"
-              title="Shop Settings"
-            >
-              <ImageIcon className="w-6 h-6" />
-            </button>
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-sm font-bold text-gray-900">{user.displayName}</span>
-              <span className="text-xs text-gray-600">{user.email}</span>
-            </div>
-            <button 
-              onClick={handleLogout} 
-              className="p-2.5 bg-white/80 hover:bg-red-50 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-all group"
-            >
-              <LogOut className="w-6 h-6 text-gray-500 group-hover:text-red-600" />
-            </button>
-          </div>
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1.5 sm:p-2 bg-white/40 hover:bg-white backdrop-blur-md rounded-full shadow-sm border border-white/40 transition-all text-gray-800 hover:text-blue-600"
+            title="Shop Settings"
+          >
+            <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
+          <button 
+            onClick={handleLogout} 
+            className="p-1.5 sm:p-2 bg-white/40 hover:bg-red-50 backdrop-blur-md rounded-full shadow-sm border border-white/40 transition-all group"
+            title="Logout"
+          >
+            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-800 group-hover:text-red-600" />
+          </button>
+        </div>
+
+        {/* Brand Elements - Logo and Name Stacked */}
+        <div className="relative z-10 px-3 sm:px-6 pt-1.5 sm:pt-3 flex flex-col items-start gap-1">
+          <LogoBranding 
+            fileId={logoFileId} 
+            className="w-8 h-8 sm:w-12 sm:h-12 shadow-md rounded-lg border border-white/40" 
+          />
+          <h1 className="text-[10px] sm:text-sm font-black text-gray-900 tracking-tighter drop-shadow-md uppercase -ml-1">
+            Mehedy Telecom
+          </h1>
         </div>
       </header>
 
@@ -1389,7 +1402,19 @@ export default function App() {
       >
         <form onSubmit={handleSaleProduct} className="space-y-6">
           <div className="space-y-4">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Customer Information</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Customer Information</h3>
+              <div className="w-1/2">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Sale Date & Time</label>
+                <input 
+                  required
+                  type="datetime-local"
+                  value={newSale.sale_date}
+                  onChange={e => setNewSale({...newSale, sale_date: e.target.value})}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
@@ -1535,20 +1560,33 @@ export default function App() {
         title="Quick Cash Sale"
       >
         <form onSubmit={handleCashSale} className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
-            <select 
-              required
-              value={cashSale.product_id}
-              onChange={e => setCashSale({...cashSale, product_id: e.target.value})}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-            >
-              <option value="">Choose a product...</option>
-              {products.filter(p => p.quantity > 0).map(p => (
-                <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
-              ))}
-            </select>
-            {cashSale.product_id && (
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
+              <select 
+                required
+                value={cashSale.product_id}
+                onChange={e => setCashSale({...cashSale, product_id: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              >
+                <option value="">Choose a product...</option>
+                {products.filter(p => p.quantity > 0).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-1/2">
+              <label className="block text-sm font-bold text-gray-700 mb-1">Sale Date</label>
+              <input 
+                required
+                type="datetime-local"
+                value={cashSale.sale_date}
+                onChange={e => setCashSale({...cashSale, sale_date: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+          {cashSale.product_id && (
               <div className="mt-4 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                 <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-gray-200 flex-shrink-0">
                   {products.find(p => p.id === cashSale.product_id)?.image_file_id ? (
@@ -1568,7 +1606,6 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (৳)</label>
             <input 
