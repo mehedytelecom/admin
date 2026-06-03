@@ -21,7 +21,8 @@ import {
   Edit2,
   BarChart3,
   ArrowDownCircle,
-  Clock
+  Clock,
+  Calculator
 } from 'lucide-react';
 import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
@@ -304,6 +305,14 @@ export default function App() {
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
   const [isMobileBazarOpen, setIsMobileBazarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isEmiCalcOpen, setIsEmiCalcOpen] = useState(false);
+  const [emiConfig, setEmiConfig] = useState({
+    productId: '',
+    downPayment: '',
+    interestRate: '',
+    serviceCharge: '',
+    months: 3
+  });
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [editSaleImages, setEditSaleImages] = useState<File[]>([]);
@@ -880,8 +889,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-20 sm:h-28 overflow-hidden shadow-md">
-        <BannerBranding fileId={bannerFileId} />
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-28 sm:h-36 shadow-md relative">
+        <div className="absolute inset-0 overflow-hidden rounded-b-2xl pointer-events-none">
+          <BannerBranding fileId={bannerFileId} />
+        </div>
         
         {/* Action Buttons & User Info - Top Right */}
         <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 flex items-center gap-1 sm:gap-3">
@@ -905,14 +916,73 @@ export default function App() {
         </div>
 
         {/* Brand Elements - Logo and Name Stacked */}
-        <div className="relative z-10 px-3 sm:px-6 pt-1.5 sm:pt-3 flex flex-col items-start gap-1">
+        <div className="relative z-10 px-3 sm:px-6 pt-1.5 sm:pt-2.5 flex flex-col items-start gap-0.5 sm:gap-1">
           <LogoBranding 
             fileId={logoFileId} 
-            className="w-8 h-8 sm:w-12 sm:h-12 shadow-md rounded-lg border border-white/40" 
+            className="w-8 h-8 sm:w-11 sm:h-11 shadow-md rounded-lg border border-white/40" 
           />
-          <h1 className="text-[10px] sm:text-sm font-black text-gray-900 tracking-tighter drop-shadow-md uppercase -ml-1">
+          <h1 className="text-[10px] sm:text-xs font-black text-gray-900 tracking-tighter drop-shadow-md uppercase -ml-1">
             Mehedy Telecom
           </h1>
+          <div className="relative w-32 sm:w-44 mt-0.5 sm:mt-1 -ml-1 sm:-ml-1.5">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
+            <input 
+              type="text"
+              value={productSearch}
+              onChange={e => setProductSearch(e.target.value)}
+              placeholder="Search products..."
+              className="w-full pl-6 pr-6 py-0.5 sm:py-1 text-[9px] sm:text-xs rounded-md border border-gray-200 bg-white/90 focus:ring-1 focus:ring-blue-500 outline-none placeholder-gray-400 font-medium"
+            />
+            {productSearch && (
+              <button 
+                onClick={() => setProductSearch('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650"
+              >
+                <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+              </button>
+            )}
+
+            {/* Quick search suggestions dropdown */}
+            {productSearch && (
+              <div className="absolute left-0 top-full mt-1.5 w-56 sm:w-64 bg-white border border-gray-150 rounded-xl shadow-xl py-1.5 z-50 max-h-48 overflow-y-auto">
+                <div className="px-3 py-1 bg-gray-50 border-b border-gray-100 text-[9px] sm:text-[10px] text-gray-450 font-black tracking-widest uppercase flex justify-between items-center sticky top-0 z-10">
+                  <span>Matched ({filteredProducts.length})</span>
+                  <button onClick={() => setProductSearch('')} className="hover:text-red-500 normal-case font-bold">Clear</button>
+                </div>
+                {filteredProducts.length === 0 ? (
+                  <div className="px-3 py-2 text-[10px] sm:text-xs text-gray-500 italic">No products found</div>
+                ) : (
+                  filteredProducts.map(p => (
+                    <div 
+                      key={p.id}
+                      className="px-3 py-1.5 hover:bg-violet-50/50 border-b border-gray-50 last:border-0 cursor-pointer flex flex-col gap-0.5"
+                      onClick={() => {
+                        const elem = document.getElementById(`product-row-${p.id}`);
+                        if (elem) {
+                          elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          elem.classList.add('bg-violet-100/70', 'transition-colors', 'duration-300');
+                          setTimeout(() => {
+                            elem.classList.remove('bg-violet-100/70');
+                          }, 3000);
+                        }
+                      }}
+                    >
+                      <div className="flex justify-between items-start gap-1">
+                        <span className="font-bold text-[10px] sm:text-xs text-gray-800 line-clamp-1">{p.name}</span>
+                        <span className={`text-[9px] font-bold px-1 rounded ${p.quantity > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                          {p.quantity > 0 ? `${p.quantity} Pcs` : 'Out'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[9px] sm:text-[10px] text-gray-500 font-semibold">
+                        <span>{p.ram ? `${p.ram}/${p.rom}` : 'No Variant'}</span>
+                        <span className="text-violet-600 font-extrabold">৳{p.selling_price.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -960,6 +1030,15 @@ export default function App() {
                 className="flex items-center justify-center gap-2 py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200"
               >
                 <ArrowDownCircle className="w-5 h-5" /> Mobile Bazar
+              </button>
+              <button 
+                onClick={() => {
+                  setEmiConfig({ productId: '', downPayment: '', interestRate: '', serviceCharge: '', months: 3 });
+                  setIsEmiCalcOpen(true);
+                }}
+                className="flex items-center justify-center gap-2 py-4 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-violet-200"
+              >
+                <Calculator className="w-5 h-5" /> EMI Calculator
               </button>
             </div>
 
@@ -1107,16 +1186,11 @@ export default function App() {
               <Package className="w-6 h-6 text-blue-600" />
               Product Stock List
             </h2>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input 
-                type="text"
-                value={productSearch}
-                onChange={e => setProductSearch(e.target.value)}
-                placeholder="Search products..."
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              />
-            </div>
+            {productSearch && (
+              <span className="text-xs bg-gray-150 text-gray-600 font-semibold px-2 py-1 rounded-md border border-gray-200">
+                Matched {filteredProducts.length} list {filteredProducts.length === 1 ? 'item' : 'items'}
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -1134,7 +1208,7 @@ export default function App() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={product.id} id={`product-row-${product.id}`} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
@@ -1807,6 +1881,157 @@ export default function App() {
                 <p className="text-center py-4 text-gray-400 text-sm">No records yet.</p>
               )}
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* EMI Calculator Modal */}
+      <Modal
+        isOpen={isEmiCalcOpen}
+        onClose={() => setIsEmiCalcOpen(false)}
+        title="EMI Calculator"
+      >
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Select Product Model</label>
+              <select
+                value={emiConfig.productId}
+                onChange={e => setEmiConfig({ ...emiConfig, productId: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
+              >
+                <option value="">Select a product...</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} — ৳{p.selling_price.toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Down Payment (৳)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={emiConfig.downPayment}
+                  onChange={e => setEmiConfig({ ...emiConfig, downPayment: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Interest Rate (%)</label>
+                <input
+                  type="number"
+                  placeholder="0%"
+                  value={emiConfig.interestRate}
+                  onChange={e => setEmiConfig({ ...emiConfig, interestRate: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Service Charge (৳)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={emiConfig.serviceCharge}
+                  onChange={e => setEmiConfig({ ...emiConfig, serviceCharge: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Select Duration (Months)</label>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[1, 2, 3, 4, 5, 6].map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setEmiConfig({ ...emiConfig, months: m })}
+                    className={`py-3 rounded-xl font-bold transition-all text-sm border ${
+                      emiConfig.months === m
+                        ? 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-100'
+                        : 'bg-gray-50 border-gray-150 hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {m} {m === 1 ? 'Month' : 'Months'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Calculations Breakdown Card */}
+            {(() => {
+              const selectedEmiProduct = products.find(p => p.id === emiConfig.productId);
+              const originalPrice = selectedEmiProduct?.selling_price || 0;
+              const downPayment = Number(emiConfig.downPayment || 0);
+              const principal = Math.max(0, originalPrice - downPayment);
+              
+              const interestRate = Number(emiConfig.interestRate || 0);
+              const interestAmount = principal * (interestRate / 100);
+              const serviceCharge = Number(emiConfig.serviceCharge || 0);
+              const totalOutstanding = principal + interestAmount + serviceCharge;
+              
+              const months = emiConfig.months || 3;
+              const monthlyEmi = totalOutstanding / months;
+
+              return (
+                <div className="bg-violet-50/70 border border-violet-100 rounded-2xl p-6 mt-6 space-y-4">
+                  <h3 className="text-sm font-extrabold text-violet-800 uppercase tracking-widest flex items-center gap-1.5">
+                    <Calculator className="w-4 h-4" /> EMI Overview Details
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-violet-100/50 pb-4">
+                    <span className="text-gray-600">Product Original Price:</span>
+                    <span className="font-bold text-right text-gray-900">৳{originalPrice.toLocaleString()}</span>
+
+                    {downPayment > 0 && (
+                      <>
+                        <span className="text-gray-600">Down Payment Paid:</span>
+                        <span className="font-bold text-right text-red-600">- ৳{downPayment.toLocaleString()}</span>
+                      </>
+                    )}
+
+                    <span className="text-gray-600">Principal (Balance Amount):</span>
+                    <span className="font-bold text-right text-gray-900">৳{principal.toLocaleString()}</span>
+
+                    {interestAmount > 0 && (
+                      <>
+                        <span className="text-gray-600">Interest Added ({interestRate}%):</span>
+                        <span className="font-bold text-right text-amber-600">+ ৳{interestAmount.toLocaleString()}</span>
+                      </>
+                    )}
+
+                    {serviceCharge > 0 && (
+                      <>
+                        <span className="text-gray-600">Service Charge Included:</span>
+                        <span className="font-bold text-right text-blue-600">+ ৳{serviceCharge.toLocaleString()}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center bg-white/70 rounded-xl p-3 border border-violet-100">
+                    <span className="text-sm font-bold text-gray-700 font-bold">Total Outstanding:</span>
+                    <span className="text-lg font-black text-gray-900">৳{totalOutstanding.toLocaleString()}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-violet-600 text-white rounded-xl p-4 shadow-md shadow-violet-100">
+                    <div>
+                      <p className="text-xs font-semibold opacity-90 uppercase tracking-wider">Monthly EMI Installment</p>
+                      <p className="text-[10px] opacity-75">Payable for {months} {months === 1 ? 'month' : 'months'}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-2xl font-black">৳{Math.round(monthlyEmi).toLocaleString()}</p>
+                      <span className="text-xs opacity-90 font-medium">/ month</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </Modal>
