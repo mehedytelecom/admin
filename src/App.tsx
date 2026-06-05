@@ -736,6 +736,7 @@ export default function App() {
         guarantor_number: editingSale.guarantor_number,
         profit: Number(editingSale.profit),
         actual_sale_price: Number(editingSale.actual_sale_price || 0),
+        sale_date: new Date(editingSale.sale_date).toISOString(),
         image_file_ids: updatedImageFileIds
       });
       setEditingSale(null);
@@ -2227,15 +2228,27 @@ export default function App() {
       >
         {editingSale && (
           <form onSubmit={handleEditSale} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
-              <input 
-                required
-                type="text"
-                value={editingSale.customer_name}
-                onChange={e => setEditingSale({...editingSale, customer_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
+                <input 
+                  required
+                  type="text"
+                  value={editingSale.customer_name}
+                  onChange={e => setEditingSale({...editingSale, customer_name: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Sale Date & Time</label>
+                <input 
+                  required
+                  type="datetime-local"
+                  value={format(new Date(editingSale.sale_date), "yyyy-MM-dd'T'HH:mm")}
+                  onChange={e => setEditingSale({...editingSale, sale_date: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
