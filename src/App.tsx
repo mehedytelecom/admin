@@ -22,7 +22,8 @@ import {
   BarChart3,
   ArrowDownCircle,
   Clock,
-  Calculator
+  Calculator,
+  Camera
 } from 'lucide-react';
 import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
@@ -51,6 +52,7 @@ import { auth, db } from './firebase';
 import { Product, Sale, MobileBazarRecord } from './types';
 import { uploadImageToTelegram, getTelegramImageUrl } from './services/telegramService';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
+import { BarcodeScanner } from './components/BarcodeScanner';
 
 // --- Components ---
 
@@ -300,6 +302,7 @@ export default function App() {
   
   const isSuperAdmin = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
   // Modals
+  const [activeScanner, setActiveScanner] = useState<'product' | 'sale' | 'cashSale' | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
   const [isCashSaleOpen, setIsCashSaleOpen] = useState(false);
@@ -1605,48 +1608,55 @@ export default function App() {
           <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
             <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
               <span>Scan Barcode / IMEI</span>
-              <span className="text-xs text-blue-600 font-normal">Press Enter after scan</span>
+              <span className="text-xs text-blue-600 font-normal">Press Enter or use Camera</span>
             </label>
-            <input 
-              type="text"
-              placeholder="Scan IMEI here..."
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const imei = e.currentTarget.value.trim();
-                  if (imei) {
-                    // Avoid duplicates
-                    if (newProduct.imeis?.includes(imei)) {
-                      e.currentTarget.value = '';
-                      return;
-                    }
-                    // Auto-fill by TAC (first 8 digits)
-                    if (imei.length >= 8 && !newProduct.name) {
-                      const tac = imei.substring(0, 8);
-                      const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
-                      if (match) {
-                        setNewProduct(prev => ({
-                          ...prev,
-                          name: match.name,
-                          ram: match.ram || '',
-                          rom: match.rom || '',
-                          color: match.color || '',
-                          purchase_price: String(match.purchase_price),
-                          selling_price: String(match.selling_price)
-                        }));
+            <div className="flex gap-2">
+              <input 
+                type="text"
+                placeholder="Scan IMEI here..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const imei = e.currentTarget.value.trim();
+                    if (imei) {
+                      if (newProduct.imeis?.includes(imei)) {
+                        e.currentTarget.value = '';
+                        return;
                       }
+                      if (imei.length >= 8 && !newProduct.name) {
+                        const tac = imei.substring(0, 8);
+                        const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
+                        if (match) {
+                          setNewProduct(prev => ({
+                            ...prev,
+                            name: match.name,
+                            ram: match.ram || '',
+                            rom: match.rom || '',
+                            color: match.color || '',
+                            purchase_price: String(match.purchase_price),
+                            selling_price: String(match.selling_price)
+                          }));
+                        }
+                      }
+                      setNewProduct(prev => ({
+                        ...prev,
+                        imeis: [...(prev.imeis || []), imei],
+                        quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
+                      }));
+                      e.currentTarget.value = '';
                     }
-                    setNewProduct(prev => ({
-                      ...prev,
-                      imeis: [...(prev.imeis || []), imei],
-                      quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
-                    }));
-                    e.currentTarget.value = '';
                   }
-                }
-              }}
-              className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            />
+                }}
+                className="flex-1 w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              />
+              <button 
+                type="button"
+                onClick={() => setActiveScanner('product')}
+                className="px-4 py-3 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center text-blue-600 shadow-sm"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+            </div>
             {newProduct.imeis && newProduct.imeis.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {newProduct.imeis.map((imei, idx) => (
@@ -1764,32 +1774,41 @@ export default function App() {
             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
               <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
                 <span>Scan IMEI to Select Product</span>
-                <span className="text-xs text-blue-600 font-normal">Fast checkout</span>
+                <span className="text-xs text-blue-600 font-normal">Press Enter or use Camera</span>
               </label>
-              <input 
-                type="text"
-                placeholder="Scan IMEI here..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const imei = e.currentTarget.value.trim();
-                    if (imei) {
-                      const match = products.find(p => p.imeis?.includes(imei));
-                      if (match) {
-                        setNewSale(prev => ({
-                          ...prev,
-                          product_id: match.id,
-                          imei: imei,
-                          color: match.color || ''
-                        }));
-                      } else {
-                        alert("Product not found with this IMEI in stock.");
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="Scan IMEI here..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const imei = e.currentTarget.value.trim();
+                      if (imei) {
+                        const match = products.find(p => p.imeis?.includes(imei));
+                        if (match) {
+                          setNewSale(prev => ({
+                            ...prev,
+                            product_id: match.id,
+                            imei: imei,
+                            color: match.color || ''
+                          }));
+                        } else {
+                          alert("Product not found with this IMEI in stock.");
+                        }
                       }
                     }
-                  }
-                }}
-                className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              />
+                  }}
+                  className="flex-1 w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setActiveScanner('sale')}
+                  className="px-4 py-3 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center text-blue-600 shadow-sm"
+                >
+                  <Camera className="w-5 h-5" />
+                </button>
+              </div>
               {newSale.imei && (
                 <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
                   ✓ Scanned EMI IMEI: {newSale.imei}
@@ -1916,32 +1935,41 @@ export default function App() {
           <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
             <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
               <span>Scan IMEI to Select Product</span>
-              <span className="text-xs text-emerald-600 font-normal">Fast checkout</span>
+              <span className="text-xs text-emerald-600 font-normal">Press Enter or use Camera</span>
             </label>
-            <input 
-              type="text"
-              placeholder="Scan IMEI here..."
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const imei = e.currentTarget.value.trim();
-                  if (imei) {
-                    const match = products.find(p => p.imeis?.includes(imei));
-                    if (match) {
-                      setCashSale(prev => ({
-                        ...prev,
-                        product_id: match.id,
-                        imei: imei,
-                        color: match.color || ''
-                      }));
-                    } else {
-                      alert("Product not found with this IMEI in stock.");
+            <div className="flex gap-2">
+              <input 
+                type="text"
+                placeholder="Scan IMEI here..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const imei = e.currentTarget.value.trim();
+                    if (imei) {
+                      const match = products.find(p => p.imeis?.includes(imei));
+                      if (match) {
+                        setCashSale(prev => ({
+                          ...prev,
+                          product_id: match.id,
+                          imei: imei,
+                          color: match.color || ''
+                        }));
+                      } else {
+                        alert("Product not found with this IMEI in stock.");
+                      }
                     }
                   }
-                }
-              }}
-              className="w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-            />
+                }}
+                className="flex-1 w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+              />
+              <button 
+                type="button"
+                onClick={() => setActiveScanner('cashSale')}
+                className="px-4 py-3 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center text-emerald-600 shadow-sm"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+            </div>
             {cashSale.imei && (
               <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
                 ✓ Scanned Cash IMEI: {cashSale.imei}
@@ -2870,6 +2898,75 @@ export default function App() {
           </div>
         </div>
       </Modal>
+
+      {activeScanner && (
+        <BarcodeScanner 
+          onClose={() => setActiveScanner(null)}
+          onResult={(imei) => {
+            if (activeScanner === 'product') {
+               if (!newProduct.imeis?.includes(imei)) {
+                 let name = newProduct.name;
+                 let ram = newProduct.ram;
+                 let rom = newProduct.rom;
+                 let color = newProduct.color;
+                 let purchase_price = newProduct.purchase_price;
+                 let selling_price = newProduct.selling_price;
+                 
+                 if (imei.length >= 8 && !name) {
+                   const tac = imei.substring(0, 8);
+                   const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
+                   if (match) {
+                     name = match.name;
+                     ram = match.ram || '';
+                     rom = match.rom || '';
+                     color = match.color || '';
+                     purchase_price = String(match.purchase_price);
+                     selling_price = String(match.selling_price);
+                   }
+                 }
+                 setNewProduct(prev => ({
+                   ...prev,
+                   name,
+                   ram: ram || '',
+                   rom: rom || '',
+                   color: color || '',
+                   purchase_price: purchase_price,
+                   selling_price: selling_price,
+                   imeis: [...(prev.imeis || []), imei],
+                   quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
+                 }));
+                 // close after 1 scan to avoid double scans, or keep open. Let's keep open for products but show toast or just alert.
+               }
+            } else if (activeScanner === 'cashSale') {
+                const match = products.find(p => p.imeis?.includes(imei));
+                if (match) {
+                  setCashSale(prev => ({
+                    ...prev,
+                    product_id: match.id,
+                    imei: imei,
+                    color: match.color || ''
+                  }));
+                  setActiveScanner(null);
+                } else {
+                  alert("Product not found with this IMEI in stock.");
+                }
+            } else if (activeScanner === 'sale') {
+                const match = products.find(p => p.imeis?.includes(imei));
+                if (match) {
+                  setNewSale(prev => ({
+                    ...prev,
+                    product_id: match.id,
+                    imei: imei,
+                    color: match.color || ''
+                  }));
+                  setActiveScanner(null);
+                } else {
+                  alert("Product not found with this IMEI in stock.");
+                }
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
