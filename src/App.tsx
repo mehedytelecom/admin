@@ -568,8 +568,10 @@ export default function App() {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteDoc(doc(db, 'products', id));
+      fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);
+      alert('Failed to delete product');
     }
   };
 
@@ -745,13 +747,29 @@ export default function App() {
   };
 
   const handleDeleteSale = async (id: string, productId: string) => {
-    if (!window.confirm('Are you sure you want to delete this sale record? This will restore the product quantity back to inventory.')) return;
+    if (!window.confirm('Are you sure you want to delete this sale record? This will restore the product quantity back to inventory if the product still exists.')) return;
     try {
       await deleteDoc(doc(db, 'sales', id));
-      await updateDoc(doc(db, 'products', productId), {
-        quantity: increment(1)
-      });
-      fetchProducts();
+      
+      try {
+        await updateDoc(doc(db, 'products', productId), {
+          quantity: increment(1)
+        });
+        fetchProducts();
+      } catch (e) {
+        console.warn('Product no longer exists, skipped updating quantity.');
+      }
+
+      // Check if there are any mobile bazar records associated with this sale and delete them
+      const mbRecordsToDelete = mobileBazarRecords.filter(mb => mb.sale_id === id);
+      for (const record of mbRecordsToDelete) {
+        try {
+          await deleteDoc(doc(db, 'mobile_bazar', record.id));
+        } catch (e) {
+          console.error("Failed to delete associated mobile bazar record", e);
+        }
+      }
+
       setSelectedSale(null);
     } catch (error) {
       console.error('Failed to delete sale:', error);
@@ -1604,8 +1622,10 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               >
                 <option value="">Choose a product...</option>
-                {products.filter(p => p.quantity > 0).map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
+                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
+                  </option>
                 ))}
               </select>
               {newSale.product_id && (
@@ -1696,8 +1716,10 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               >
                 <option value="">Choose a product...</option>
-                {products.filter(p => p.quantity > 0).map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
+                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
+                  </option>
                 ))}
               </select>
             </div>
