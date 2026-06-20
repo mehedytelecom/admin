@@ -568,7 +568,6 @@ export default function App() {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteDoc(doc(db, 'products', id));
-      fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);
       alert('Failed to delete product');
@@ -755,7 +754,6 @@ export default function App() {
         await updateDoc(doc(db, 'products', productId), {
           quantity: increment(1)
         });
-        fetchProducts();
       } catch (e) {
         console.warn('Product no longer exists, skipped updating quantity.');
       }
@@ -881,15 +879,22 @@ export default function App() {
     }
   };
 
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || 0);
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    if (!productSearch) return products;
-    const search = productSearch.toLowerCase();
-    return products.filter(p => 
-      p.name.toLowerCase().includes(search) ||
-      (p.ram && p.ram.toLowerCase().includes(search)) ||
-      (p.rom && p.rom.toLowerCase().includes(search))
-    );
-  }, [products, productSearch]);
+    let result = sortedProducts;
+    if (productSearch) {
+      const search = productSearch.toLowerCase();
+      result = sortedProducts.filter(p => 
+        p.name.toLowerCase().includes(search) ||
+        (p.ram && p.ram.toLowerCase().includes(search)) ||
+        (p.rom && p.rom.toLowerCase().includes(search))
+      );
+    }
+    return result;
+  }, [sortedProducts, productSearch]);
 
   const filteredSales = useMemo(() => {
     if (!saleSearch) return sales;
@@ -1404,8 +1409,8 @@ export default function App() {
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
               <option value="">-- Create New Product --</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''}</option>
+              {sortedProducts.map(p => (
+                <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
               ))}
             </select>
           </div>
@@ -1622,7 +1627,7 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               >
                 <option value="">Choose a product...</option>
-                {products.map(p => (
+                {sortedProducts.map(p => (
                   <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
                     {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
                   </option>
@@ -1716,7 +1721,7 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               >
                 <option value="">Choose a product...</option>
-                {products.map(p => (
+                {sortedProducts.map(p => (
                   <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
                     {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
                   </option>
@@ -1975,7 +1980,7 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
               >
                 <option value="">Select a product...</option>
-                {products.map(p => (
+                {sortedProducts.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} — ৳{p.selling_price.toLocaleString()}
                   </option>
