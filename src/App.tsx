@@ -285,7 +285,7 @@ const LogoBranding: React.FC<{ fileId: string | null; className?: string }> = ({
 };
 
 // --- Constants ---
-const ADMIN_EMAIL = 'mehedyhossain160619@gmail.com';
+const ADMIN_EMAILS = ['mehedyhossain160619@gmail.com', 'likee350@gmail.com'];
 
 // --- Main App ---
 
@@ -296,7 +296,7 @@ export default function App() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
   
-  const isSuperAdmin = user?.email === ADMIN_EMAIL;
+  const isSuperAdmin = Boolean(user?.email && ADMIN_EMAILS.includes(user.email));
   // Modals
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
