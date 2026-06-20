@@ -7,6 +7,8 @@ export interface Product {
   quantity: number;
   ram?: string;
   rom?: string;
+  color?: string;
+  imeis?: string[];
   image_file_id?: string;
   created_at: string;
 }
@@ -20,6 +22,8 @@ export interface Sale {
   guarantor_number: string;
   product_id: string;
   product_name: string;
+  color?: string;
+  imei?: string;
   ram?: string;
   rom?: string;
   image_file_ids: string[];
@@ -35,6 +39,7 @@ export interface MobileBazarRecord {
   sale_id: string;
   customer_name: string;
   product_name: string;
+  imei?: string;
   ram?: string;
   rom?: string;
   down_payment: number;

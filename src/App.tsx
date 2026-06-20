@@ -42,7 +42,9 @@ import {
   updateDoc, 
   increment,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { format, isToday, isSameMonth, parseISO } from 'date-fns';
 import { auth, db } from './firebase';
@@ -332,6 +334,8 @@ export default function App() {
     quantity: '',
     ram: '',
     rom: '',
+    color: '',
+    imeis: [] as string[],
     image: null as File | null,
     image_file_id: ''
   });
@@ -354,6 +358,7 @@ export default function App() {
       address: '',
       guarantor_number: '',
       product_id: '',
+      color: '',
       images: [] as File[],
       sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
     };
@@ -362,7 +367,7 @@ export default function App() {
   useEffect(() => {
     const draft = { ...newSale, images: [] };
     localStorage.setItem('draft_newSale', JSON.stringify(draft));
-  }, [newSale.customer_name, newSale.phone_number, newSale.nid_number, newSale.address, newSale.guarantor_number, newSale.product_id, newSale.sale_date]);
+  }, [newSale.customer_name, newSale.phone_number, newSale.nid_number, newSale.address, newSale.guarantor_number, newSale.product_id, newSale.color, newSale.imei, newSale.sale_date]);
   const [cashSale, setCashSale] = useState(() => {
     const saved = localStorage.getItem('draft_cashSale');
     if (saved) {
@@ -376,6 +381,7 @@ export default function App() {
     }
     return {
       product_id: '',
+      color: '',
       actual_sale_price: '',
       sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
     };
@@ -601,6 +607,8 @@ export default function App() {
           quantity: increment(Number(newProduct.quantity)),
           ram: newProduct.ram,
           rom: newProduct.rom,
+          color: newProduct.color,
+          imeis: newProduct.imeis && newProduct.imeis.length > 0 ? arrayUnion(...newProduct.imeis) : [],
           image_file_id: imageFileId
         });
       } else {
@@ -613,12 +621,14 @@ export default function App() {
           quantity: Number(newProduct.quantity),
           ram: newProduct.ram,
           rom: newProduct.rom,
+          color: newProduct.color,
+          imeis: newProduct.imeis || [],
           image_file_id: imageFileId,
           created_at: new Date().toISOString()
         });
       }
 
-      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
+      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', imeis: [], image: null, image_file_id: '' });
       setIsAddProductOpen(false);
     } catch (error) {
       console.error('Failed to add/update product:', error);
@@ -661,6 +671,8 @@ export default function App() {
         guarantor_number: newSale.guarantor_number,
         product_id: product.id,
         product_name: product.name,
+        color: newSale.color || product.color || '',
+        imei: newSale.imei || '',
         ram: product.ram || '',
         rom: product.rom || '',
         image_file_ids: imageFileIds,
@@ -670,9 +682,10 @@ export default function App() {
       });
 
       // 3. Decrease stock
-      await updateDoc(doc(db, 'products', product.id), {
-        quantity: increment(-1)
-      });
+      const stockUpdate: any = { quantity: increment(-1) };
+      if (newSale.imei) stockUpdate.imeis = arrayRemove(newSale.imei);
+      
+      await updateDoc(doc(db, 'products', product.id), stockUpdate);
 
       setNewSale({
         customer_name: '',
@@ -718,6 +731,8 @@ export default function App() {
         guarantor_number: 'N/A',
         product_id: product.id,
         product_name: product.name,
+        color: cashSale.color || product.color || '',
+        imei: cashSale.imei || '',
         ram: product.ram || '',
         rom: product.rom || '',
         image_file_ids: [],
@@ -727,9 +742,10 @@ export default function App() {
         is_cash_sale: true
       });
 
-      await updateDoc(doc(db, 'products', product.id), {
-        quantity: increment(-1)
-      });
+      const stockUpdate: any = { quantity: increment(-1) };
+      if (cashSale.imei) stockUpdate.imeis = arrayRemove(cashSale.imei);
+
+      await updateDoc(doc(db, 'products', product.id), stockUpdate);
 
       setCashSale({ 
         product_id: '', 
@@ -837,6 +853,8 @@ export default function App() {
         sale_id: sale.id,
         customer_name: sale.customer_name,
         product_name: sale.product_name,
+        color: sale.color || '',
+        imei: sale.imei || '',
         ram: sale.ram || '',
         rom: sale.rom || '',
         down_payment: downPayment,
@@ -1222,12 +1240,24 @@ export default function App() {
                   currentMonthSales.map((sale) => (
                     <tr key={sale.id} className="hover:bg-gray-50 transition-colors group">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {sale.product_name}
+                        <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2">
+                          <span>{sale.product_name}</span>
                           {(sale.ram || sale.rom) && (
-                            <span className="ml-2 text-[10px] font-medium text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-medium text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
                               {sale.ram}/{sale.rom}
                             </span>
+                          )}
+                          {sale.color && sale.color !== '' && (
+                            <div 
+                              className={`w-2.5 h-2.5 rounded-full shadow border-white border ${
+                                sale.color === 'Black' ? 'bg-black' :
+                                sale.color === 'Titanium Gray' ? 'bg-slate-500' :
+                                sale.color === 'Blue' ? 'bg-blue-500' :
+                                sale.color === 'Gold' ? 'bg-yellow-500' :
+                                sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                              }`}
+                              title={sale.color}
+                            />
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-1">
@@ -1295,7 +1325,23 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        <span className="font-bold text-gray-900">{product.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-900">{product.name}</span>
+                          {product.color && product.color !== '' && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <div 
+                                className={`w-3 h-3 rounded-full shadow border-white border ${
+                                  product.color === 'Black' ? 'bg-black' :
+                                  product.color === 'Titanium Gray' ? 'bg-slate-500' :
+                                  product.color === 'Blue' ? 'bg-blue-500' :
+                                  product.color === 'Gold' ? 'bg-yellow-500' :
+                                  product.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                                }`}
+                                title={product.color}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-gray-500 text-sm">
@@ -1311,13 +1357,27 @@ export default function App() {
                     <td className="px-4 sm:px-6 py-4 text-gray-600">৳{product.selling_price}</td>
                     <td className="px-4 sm:px-6 py-4 text-emerald-600 font-bold">৳{product.profit_margin}</td>
                     <td className="px-4 sm:px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-bold ${
-                        product.quantity > 10 ? 'bg-emerald-100 text-emerald-700' : 
-                        product.quantity > 0 ? 'bg-orange-100 text-orange-700' : 
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {product.quantity} Pcs
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-bold w-fit ${
+                          product.quantity > 10 ? 'bg-emerald-100 text-emerald-700' : 
+                          product.quantity > 0 ? 'bg-orange-100 text-orange-700' : 
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {product.quantity} Pcs
+                        </span>
+                        {product.imeis && product.imeis.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-w-[150px]">
+                            {product.imeis.slice(0, 2).map((imei, idx) => (
+                              <span key={idx} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono" title={imei}>
+                                {imei.length > 8 ? imei.slice(-6) : imei}
+                              </span>
+                            ))}
+                            {product.imeis.length > 2 && (
+                              <span className="text-[9px] text-blue-500 font-bold px-1 py-0.5">+{product.imeis.length - 2}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
@@ -1331,6 +1391,7 @@ export default function App() {
                               quantity: '0',
                               ram: product.ram || '',
                               rom: product.rom || '',
+                              color: product.color || '',
                               image: null,
                               image_file_id: product.image_file_id || ''
                             });
@@ -1488,6 +1549,27 @@ export default function App() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Color</label>
+            <div className="flex gap-3">
+              {[
+                { name: 'Black', class: 'bg-black ring-black' },
+                { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
+                { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
+                { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
+                { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
+              ].map(color => (
+                <button
+                  key={color.name}
+                  type="button"
+                  onClick={() => setNewProduct({...newProduct, color: color.name})}
+                  className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${newProduct.color === color.name ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
+                  title={color.name}
+                />
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Purchase Price</label>
@@ -1520,9 +1602,70 @@ export default function App() {
               </span>
             </div>
           </div>
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
+              <span>Scan Barcode / IMEI</span>
+              <span className="text-xs text-blue-600 font-normal">Press Enter after scan</span>
+            </label>
+            <input 
+              type="text"
+              placeholder="Scan IMEI here..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const imei = e.currentTarget.value.trim();
+                  if (imei) {
+                    // Avoid duplicates
+                    if (newProduct.imeis?.includes(imei)) {
+                      e.currentTarget.value = '';
+                      return;
+                    }
+                    // Auto-fill by TAC (first 8 digits)
+                    if (imei.length >= 8 && !newProduct.name) {
+                      const tac = imei.substring(0, 8);
+                      const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
+                      if (match) {
+                        setNewProduct(prev => ({
+                          ...prev,
+                          name: match.name,
+                          ram: match.ram || '',
+                          rom: match.rom || '',
+                          color: match.color || '',
+                          purchase_price: String(match.purchase_price),
+                          selling_price: String(match.selling_price)
+                        }));
+                      }
+                    }
+                    setNewProduct(prev => ({
+                      ...prev,
+                      imeis: [...(prev.imeis || []), imei],
+                      quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
+                    }));
+                    e.currentTarget.value = '';
+                  }
+                }
+              }}
+              className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+            />
+            {newProduct.imeis && newProduct.imeis.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {newProduct.imeis.map((imei, idx) => (
+                  <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded-lg text-xs font-mono flex items-center gap-1 shadow-sm">
+                    {imei}
+                    <button type="button" onClick={() => setNewProduct(prev => ({ ...prev, imeis: prev.imeis?.filter((_, i) => i !== idx), quantity: prev.id ? prev.quantity : String(prev.imeis!.length - 1 < 0 ? 0 : prev.imeis!.length - 1) }))} className="text-red-500 hover:text-red-700 ml-1 font-bold">&times;</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
-              {newProduct.id ? "Stock Adjustment (use - to decrease)" : "Initial Quantity (Stock)"}
+            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
+              <span>{newProduct.id ? "Stock Adjustment (use - to decrease)" : "Initial Quantity (Stock)"}</span>
+              {newProduct.id && (
+                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md text-xs border border-blue-100">
+                  Current Stock: {products.find(p => p.id === newProduct.id)?.quantity || 0} Pcs
+                </span>
+              )}
             </label>
             <input 
               required
@@ -1618,6 +1761,42 @@ export default function App() {
 
           <div className="space-y-4">
             <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Product Selection</h3>
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+              <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
+                <span>Scan IMEI to Select Product</span>
+                <span className="text-xs text-blue-600 font-normal">Fast checkout</span>
+              </label>
+              <input 
+                type="text"
+                placeholder="Scan IMEI here..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const imei = e.currentTarget.value.trim();
+                    if (imei) {
+                      const match = products.find(p => p.imeis?.includes(imei));
+                      if (match) {
+                        setNewSale(prev => ({
+                          ...prev,
+                          product_id: match.id,
+                          imei: imei,
+                          color: match.color || ''
+                        }));
+                      } else {
+                        alert("Product not found with this IMEI in stock.");
+                      }
+                    }
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              />
+              {newSale.imei && (
+                <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
+                  ✓ Scanned EMI IMEI: {newSale.imei}
+                  <button type="button" onClick={() => setNewSale(prev => ({...prev, imei: ''}))} className="text-red-500 hover:text-red-700 ml-2">&times; Remove</button>
+                </p>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
               <select 
@@ -1654,6 +1833,29 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {newSale.product_id && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Select Sold Color</label>
+                <div className="flex gap-3">
+                  {[
+                    { name: 'Black', class: 'bg-black ring-black' },
+                    { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
+                    { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
+                    { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
+                    { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
+                  ].map(color => (
+                    <button
+                      key={color.name}
+                      type="button"
+                      onClick={() => setNewSale({...newSale, color: color.name})}
+                      className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${newSale.color === color.name || (!newSale.color && products.find(p => p.id === newSale.product_id)?.color === color.name) ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -1711,6 +1913,42 @@ export default function App() {
         title="Quick Cash Sale"
       >
         <form onSubmit={handleCashSale} className="space-y-4">
+          <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
+              <span>Scan IMEI to Select Product</span>
+              <span className="text-xs text-emerald-600 font-normal">Fast checkout</span>
+            </label>
+            <input 
+              type="text"
+              placeholder="Scan IMEI here..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const imei = e.currentTarget.value.trim();
+                  if (imei) {
+                    const match = products.find(p => p.imeis?.includes(imei));
+                    if (match) {
+                      setCashSale(prev => ({
+                        ...prev,
+                        product_id: match.id,
+                        imei: imei,
+                        color: match.color || ''
+                      }));
+                    } else {
+                      alert("Product not found with this IMEI in stock.");
+                    }
+                  }
+                }
+              }}
+              className="w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+            />
+            {cashSale.imei && (
+              <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
+                ✓ Scanned Cash IMEI: {cashSale.imei}
+                <button type="button" onClick={() => setCashSale(prev => ({...prev, imei: ''}))} className="text-red-500 hover:text-red-700 ml-2">&times; Remove</button>
+              </p>
+            )}
+          </div>
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
@@ -1759,6 +1997,28 @@ export default function App() {
                 </div>
               </div>
             )}
+          {cashSale.product_id && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Select Sold Color</label>
+              <div className="flex gap-3">
+                {[
+                  { name: 'Black', class: 'bg-black ring-black' },
+                  { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
+                  { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
+                  { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
+                  { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
+                ].map(color => (
+                  <button
+                    key={color.name}
+                    type="button"
+                    onClick={() => setCashSale({...cashSale, color: color.name})}
+                    className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${cashSale.color === color.name || (!cashSale.color && products.find(p => p.id === cashSale.product_id)?.color === color.name) ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (৳)</label>
             <input 
@@ -1836,9 +2096,23 @@ export default function App() {
                 <div key={s.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
                   <div>
                     <p className="font-bold text-gray-900 text-sm">{s.customer_name}</p>
-                    <p className="text-[10px] text-gray-500">
-                      {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-[10px] text-gray-500">
+                        {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''}
+                      </p>
+                      {s.color && s.color !== '' && (
+                        <div 
+                          className={`w-2 h-2 rounded-full shadow border-white border ${
+                            s.color === 'Black' ? 'bg-black' :
+                            s.color === 'Titanium Gray' ? 'bg-slate-500' :
+                            s.color === 'Blue' ? 'bg-blue-500' :
+                            s.color === 'Gold' ? 'bg-yellow-500' :
+                            s.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                          }`}
+                          title={s.color}
+                        />
+                      )}
+                    </div>
                     <p className="text-[10px] text-gray-400">{format(parseISO(s.sale_date), 'dd/MM/yyyy')}</p>
                   </div>
                   <div className="text-right">
@@ -1873,7 +2147,7 @@ export default function App() {
                 <option value="">Choose a sale record...</option>
                 {sales.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.customer_name} - {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''} ({format(parseISO(s.sale_date), 'MMM dd')})
+                    {s.customer_name} - {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''} {s.color ? `[${s.color}]` : ''} ({format(parseISO(s.sale_date), 'MMM dd')})
                   </option>
                 ))}
               </select>
@@ -1944,9 +2218,23 @@ export default function App() {
                   <div key={r.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
                     <div>
                       <p className="font-bold text-gray-900 text-sm">{r.customer_name}</p>
-                      <p className="text-xs text-gray-500">
-                        {r.product_name} {(r.ram || r.rom) ? `(${r.ram || ''}${r.ram && r.rom ? '/' : ''}${r.rom || ''})` : ''}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-xs text-gray-500">
+                          {r.product_name} {(r.ram || r.rom) ? `(${r.ram || ''}${r.ram && r.rom ? '/' : ''}${r.rom || ''})` : ''}
+                        </p>
+                        {sale?.color && sale.color !== '' && (
+                          <div 
+                            className={`w-2 h-2 rounded-full shadow border-white border ${
+                              sale.color === 'Black' ? 'bg-black' :
+                              sale.color === 'Titanium Gray' ? 'bg-slate-500' :
+                              sale.color === 'Blue' ? 'bg-blue-500' :
+                              sale.color === 'Gold' ? 'bg-yellow-500' :
+                              sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                            }`}
+                            title={sale.color}
+                          />
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-400">{format(parseISO(r.created_at), 'dd/MM/yyyy - hh:mm a')}</p>
                     </div>
                     <div className="text-right">
@@ -2145,9 +2433,21 @@ export default function App() {
                   <div className="text-left">
                     <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
                     <p className="text-sm text-gray-500">{sale.phone_number}</p>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      {sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''}
-                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1">
+                      <span>{sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''}</span>
+                      {sale.color && sale.color !== '' && (
+                        <div 
+                          className={`w-2 h-2 rounded-full shadow border-white border ${
+                            sale.color === 'Black' ? 'bg-black' :
+                            sale.color === 'Titanium Gray' ? 'bg-slate-500' :
+                            sale.color === 'Blue' ? 'bg-blue-500' :
+                            sale.color === 'Gold' ? 'bg-yellow-500' :
+                            sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                          }`}
+                          title={sale.color}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -2237,9 +2537,27 @@ export default function App() {
                     <Package className="w-5 h-5 text-emerald-500 mt-0.5" />
                     <div>
                       <p className="text-xs text-gray-500">Product Sold</p>
-                      <p className="font-bold text-gray-900">
-                        {selectedSale.product_name} {(selectedSale.ram || selectedSale.rom) ? `(${selectedSale.ram || ''}${selectedSale.ram && selectedSale.rom ? '/' : ''}${selectedSale.rom || ''})` : ''}
-                      </p>
+                      <div className="flex flex-col gap-1">
+                        <p className="font-bold text-gray-900">
+                          {selectedSale.product_name} {(selectedSale.ram || selectedSale.rom) ? `(${selectedSale.ram || ''}${selectedSale.ram && selectedSale.rom ? '/' : ''}${selectedSale.rom || ''})` : ''}
+                        </p>
+                        {selectedSale.color && selectedSale.color !== '' && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500">Color:</span>
+                            <div 
+                              className={`w-3 h-3 rounded-full shadow border-white border ${
+                                selectedSale.color === 'Black' ? 'bg-black' :
+                                selectedSale.color === 'Titanium Gray' ? 'bg-slate-500' :
+                                selectedSale.color === 'Blue' ? 'bg-blue-500' :
+                                selectedSale.color === 'Gold' ? 'bg-yellow-500' :
+                                selectedSale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                              }`}
+                              title={selectedSale.color}
+                            />
+                            <span className="text-xs font-medium text-gray-700">{selectedSale.color}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
