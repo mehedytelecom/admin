@@ -335,21 +335,55 @@ export default function App() {
     image: null as File | null,
     image_file_id: ''
   });
-  const [newSale, setNewSale] = useState({
-    customer_name: '',
-    phone_number: '',
-    nid_number: '',
-    address: '',
-    guarantor_number: '',
-    product_id: '',
-    images: [] as File[],
-    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+  const [newSale, setNewSale] = useState(() => {
+    const saved = localStorage.getItem('draft_newSale');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          images: [] as File[],
+          sale_date: parsed.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+        };
+      } catch { }
+    }
+    return {
+      customer_name: '',
+      phone_number: '',
+      nid_number: '',
+      address: '',
+      guarantor_number: '',
+      product_id: '',
+      images: [] as File[],
+      sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+    };
   });
-  const [cashSale, setCashSale] = useState({
-    product_id: '',
-    actual_sale_price: '',
-    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+
+  useEffect(() => {
+    const draft = { ...newSale, images: [] };
+    localStorage.setItem('draft_newSale', JSON.stringify(draft));
+  }, [newSale.customer_name, newSale.phone_number, newSale.nid_number, newSale.address, newSale.guarantor_number, newSale.product_id, newSale.sale_date]);
+  const [cashSale, setCashSale] = useState(() => {
+    const saved = localStorage.getItem('draft_cashSale');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          sale_date: parsed.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+        };
+      } catch { }
+    }
+    return {
+      product_id: '',
+      actual_sale_price: '',
+      sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('draft_cashSale', JSON.stringify(cashSale));
+  }, [cashSale]);
   const [newMobileBazar, setNewMobileBazar] = useState({
     sale_id: '',
     down_payment: ''
@@ -649,6 +683,7 @@ export default function App() {
         images: [],
         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
       });
+      localStorage.removeItem('draft_newSale');
       setUploadProgress({});
       setIsSaleProductOpen(false);
     } catch (error: any) {
@@ -700,11 +735,27 @@ export default function App() {
         actual_sale_price: '',
         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm") 
       });
+      localStorage.removeItem('draft_cashSale');
       setIsCashSaleOpen(false);
     } catch (error) {
       console.error('Failed to record cash sale:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSale = async (id: string, productId: string) => {
+    if (!window.confirm('Are you sure you want to delete this sale record? This will restore the product quantity back to inventory.')) return;
+    try {
+      await deleteDoc(doc(db, 'sales', id));
+      await updateDoc(doc(db, 'products', productId), {
+        quantity: increment(1)
+      });
+      fetchProducts();
+      setSelectedSale(null);
+    } catch (error) {
+      console.error('Failed to delete sale:', error);
+      alert('Failed to delete sale');
     }
   };
 
@@ -2199,7 +2250,13 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 flex-wrap">
+              <button 
+                onClick={() => handleDeleteSale(selectedSale.id, selectedSale.product_id)}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors mr-auto"
+              >
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
               <button 
                 onClick={() => setEditingSale(selectedSale)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
