@@ -9,6 +9,7 @@ export interface Product {
   rom?: string;
   color?: string;
   imeis?: string[];
+  imei_colors?: Record<string, string>;
   image_file_id?: string;
   created_at: string;
 }

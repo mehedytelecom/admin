@@ -339,6 +339,7 @@ export default function App() {
     rom: '',
     color: '',
     imeis: [] as string[],
+    imei_colors: {} as Record<string, string>,
     image: null as File | null,
     image_file_id: ''
   });
@@ -602,7 +603,7 @@ export default function App() {
 
       if (newProduct.id) {
         // Update existing product
-        await updateDoc(doc(db, 'products', newProduct.id), {
+        const updateData: any = {
           name: newProduct.name,
           purchase_price: pPrice,
           selling_price: sPrice,
@@ -611,9 +612,17 @@ export default function App() {
           ram: newProduct.ram,
           rom: newProduct.rom,
           color: newProduct.color,
-          imeis: newProduct.imeis && newProduct.imeis.length > 0 ? arrayUnion(...newProduct.imeis) : [],
           image_file_id: imageFileId
-        });
+        };
+        if (newProduct.imeis && newProduct.imeis.length > 0) {
+          updateData.imeis = arrayUnion(...newProduct.imeis);
+        }
+        if (newProduct.imei_colors) {
+          Object.entries(newProduct.imei_colors).forEach(([imei, col]) => {
+            updateData[`imei_colors.${imei}`] = col;
+          });
+        }
+        await updateDoc(doc(db, 'products', newProduct.id), updateData);
       } else {
         // Add new product
         await addDoc(collection(db, 'products'), {
@@ -626,12 +635,13 @@ export default function App() {
           rom: newProduct.rom,
           color: newProduct.color,
           imeis: newProduct.imeis || [],
+          imei_colors: newProduct.imei_colors || {},
           image_file_id: imageFileId,
           created_at: new Date().toISOString()
         });
       }
 
-      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', imeis: [], image: null, image_file_id: '' });
+      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
       setIsAddProductOpen(false);
     } catch (error) {
       console.error('Failed to add/update product:', error);
@@ -911,7 +921,8 @@ export default function App() {
       result = sortedProducts.filter(p => 
         p.name.toLowerCase().includes(search) ||
         (p.ram && p.ram.toLowerCase().includes(search)) ||
-        (p.rom && p.rom.toLowerCase().includes(search))
+        (p.rom && p.rom.toLowerCase().includes(search)) ||
+        (p.imeis && p.imeis.some(imei => imei.toLowerCase().includes(search)))
       );
     }
     return result;
@@ -1020,23 +1031,32 @@ export default function App() {
           <h1 className="text-[10px] sm:text-xs font-black text-gray-900 tracking-tighter drop-shadow-md uppercase -ml-1">
             Mehedy Telecom
           </h1>
-          <div className="relative w-32 sm:w-44 mt-0.5 sm:mt-1 -ml-1 sm:-ml-1.5">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
-            <input 
-              type="text"
-              value={productSearch}
-              onChange={e => setProductSearch(e.target.value)}
-              placeholder="Search products..."
-              className="w-full pl-6 pr-6 py-0.5 sm:py-1 text-[9px] sm:text-xs rounded-md border border-gray-200 bg-white/90 focus:ring-1 focus:ring-blue-500 outline-none placeholder-gray-400 font-medium"
-            />
-            {productSearch && (
-              <button 
-                onClick={() => setProductSearch('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650"
-              >
-                <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-              </button>
-            )}
+          <div className="relative w-32 sm:w-44 mt-0.5 sm:mt-1 -ml-1 sm:-ml-1.5 flex gap-1 items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
+              <input 
+                type="text"
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                placeholder="Search products..."
+                className="w-full pl-6 pr-6 py-0.5 sm:py-1 text-[9px] sm:text-xs rounded-md border border-gray-200 bg-white/90 focus:ring-1 focus:ring-blue-500 outline-none placeholder-gray-400 font-medium"
+              />
+              {productSearch && (
+                <button 
+                  onClick={() => setProductSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650"
+                >
+                  <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                </button>
+              )}
+            </div>
+            <button 
+              onClick={() => setActiveScanner('search')}
+              className="text-gray-500 hover:text-blue-600 p-0.5 rounded-md hover:bg-gray-100 transition-colors"
+              title="Scan Barcode"
+            >
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
 
             {/* Quick search suggestions dropdown */}
             {productSearch && (
@@ -1641,6 +1661,7 @@ export default function App() {
                       setNewProduct(prev => ({
                         ...prev,
                         imeis: [...(prev.imeis || []), imei],
+                        imei_colors: { ...(prev.imei_colors || {}), [imei]: prev.color || '' },
                         quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
                       }));
                       e.currentTarget.value = '';
@@ -1661,8 +1682,25 @@ export default function App() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {newProduct.imeis.map((imei, idx) => (
                   <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded-lg text-xs font-mono flex items-center gap-1 shadow-sm">
+                    {newProduct.imei_colors?.[imei] && (
+                      <div 
+                        className={`w-2 h-2 rounded-full border border-gray-200 ${
+                          newProduct.imei_colors[imei] === 'Black' ? 'bg-black' :
+                          newProduct.imei_colors[imei] === 'Titanium Gray' ? 'bg-slate-500' :
+                          newProduct.imei_colors[imei] === 'Blue' ? 'bg-blue-500' :
+                          newProduct.imei_colors[imei] === 'Gold' ? 'bg-yellow-500' :
+                          newProduct.imei_colors[imei] === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                        }`}
+                        title={newProduct.imei_colors[imei]}
+                      />
+                    )}
                     {imei}
-                    <button type="button" onClick={() => setNewProduct(prev => ({ ...prev, imeis: prev.imeis?.filter((_, i) => i !== idx), quantity: prev.id ? prev.quantity : String(prev.imeis!.length - 1 < 0 ? 0 : prev.imeis!.length - 1) }))} className="text-red-500 hover:text-red-700 ml-1 font-bold">&times;</button>
+                    <button type="button" onClick={() => setNewProduct(prev => {
+                      const newImeis = prev.imeis?.filter((_, i) => i !== idx);
+                      const newColors = { ...prev.imei_colors };
+                      delete newColors[imei];
+                      return { ...prev, imeis: newImeis, imei_colors: newColors, quantity: prev.id ? prev.quantity : String(newImeis!.length) };
+                    })} className="text-red-500 hover:text-red-700 ml-1 font-bold">&times;</button>
                   </span>
                 ))}
               </div>
@@ -1791,7 +1829,7 @@ export default function App() {
                             ...prev,
                             product_id: match.id,
                             imei: imei,
-                            color: match.color || ''
+                            color: match.imei_colors?.[imei] || match.color || ''
                           }));
                         } else {
                           alert("Product not found with this IMEI in stock.");
@@ -1952,7 +1990,7 @@ export default function App() {
                           ...prev,
                           product_id: match.id,
                           imei: imei,
-                          color: match.color || ''
+                          color: match.imei_colors?.[imei] || match.color || ''
                         }));
                       } else {
                         alert("Product not found with this IMEI in stock.");
@@ -2933,6 +2971,7 @@ export default function App() {
                    purchase_price: purchase_price,
                    selling_price: selling_price,
                    imeis: [...(prev.imeis || []), imei],
+                   imei_colors: { ...(prev.imei_colors || {}), [imei]: color || '' },
                    quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
                  }));
                  // close after 1 scan to avoid double scans, or keep open. Let's keep open for products but show toast or just alert.
@@ -2944,7 +2983,7 @@ export default function App() {
                     ...prev,
                     product_id: match.id,
                     imei: imei,
-                    color: match.color || ''
+                    color: match.imei_colors?.[imei] || match.color || ''
                   }));
                   setActiveScanner(null);
                 } else {
@@ -2957,12 +2996,15 @@ export default function App() {
                     ...prev,
                     product_id: match.id,
                     imei: imei,
-                    color: match.color || ''
+                    color: match.imei_colors?.[imei] || match.color || ''
                   }));
                   setActiveScanner(null);
                 } else {
                   alert("Product not found with this IMEI in stock.");
                 }
+            } else if (activeScanner === 'search') {
+                setProductSearch(imei);
+                setActiveScanner(null);
             }
           }}
         />
