@@ -53,6 +53,7 @@ import { Product, Sale, MobileBazarRecord } from './types';
 import { uploadImageToTelegram, getTelegramImageUrl } from './services/telegramService';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { BarcodeScanner } from './components/BarcodeScanner';
+import { PhotoCapture } from './components/PhotoCapture';
 
 // --- Components ---
 
@@ -302,7 +303,8 @@ export default function App() {
   
   const isSuperAdmin = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
   // Modals
-  const [activeScanner, setActiveScanner] = useState<'product' | 'sale' | 'cashSale' | null>(null);
+  const [activeScanner, setActiveScanner] = useState<'product' | 'sale' | 'cashSale' | 'search' | null>(null);
+  const [activePhotoCapture, setActivePhotoCapture] = useState<'sale' | 'editSale' | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
   const [isCashSaleOpen, setIsCashSaleOpen] = useState(false);
@@ -1916,7 +1918,16 @@ export default function App() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Image Upload (Telegram)</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Image Upload (Telegram)</h3>
+              <button 
+                type="button" 
+                onClick={() => setActivePhotoCapture('sale')}
+                className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-200 transition-colors"
+              >
+                <Camera className="w-4 h-4" /> Take Photo
+              </button>
+            </div>
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
               <input 
                 type="file" 
@@ -2764,7 +2775,16 @@ export default function App() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Update Images</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Update Images</h3>
+                <button 
+                  type="button" 
+                  onClick={() => setActivePhotoCapture('editSale')}
+                  className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-200 transition-colors"
+                >
+                  <Camera className="w-4 h-4" /> Take Photo
+                </button>
+              </div>
               
               {/* Existing Images */}
               <div className="grid grid-cols-3 gap-2">
@@ -3006,6 +3026,20 @@ export default function App() {
                 setProductSearch(imei);
                 setActiveScanner(null);
             }
+          }}
+        />
+      )}
+
+      {activePhotoCapture && (
+        <PhotoCapture
+          onClose={() => setActivePhotoCapture(null)}
+          onCapture={(file) => {
+            if (activePhotoCapture === 'sale') {
+              setNewSale(prev => ({ ...prev, images: [...prev.images, file] }));
+            } else if (activePhotoCapture === 'editSale') {
+              setEditSaleImages(prev => [...prev, file]);
+            }
+            setActivePhotoCapture(null);
           }}
         />
       )}
