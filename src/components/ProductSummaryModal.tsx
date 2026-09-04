@@ -48,7 +48,7 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
     let totalProfitVal = 0;
     let inStockModels = 0;
 
-    products.forEach(p => {
+    (products || []).forEach(p => {
       const qty = Number(p.quantity) || 0;
       if (p.condition === 'used') {
         usedQty += qty;
@@ -64,7 +64,7 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
     });
 
     return {
-      totalModels: products.length,
+      totalModels: (products || []).length,
       inStockModels,
       totalQuantity: totalQty,
       usedQuantity: usedQty,
@@ -76,7 +76,7 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
-    let list = [...products];
+    let list = [...(products || [])];
 
     if (inStockOnly) {
       list = list.filter(p => (p.quantity || 0) > 0);

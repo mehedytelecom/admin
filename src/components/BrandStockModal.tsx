@@ -39,7 +39,7 @@ export const BrandStockModal: React.FC<BrandStockModalProps> = ({
 
   // Group products into brand summaries
   const brandSummaries = useMemo(() => {
-    return groupProductsByBrand(products);
+    return groupProductsByBrand(products || []);
   }, [products]);
 
   // Filtered brands for brand selection view

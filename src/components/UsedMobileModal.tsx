@@ -36,7 +36,7 @@ export const UsedMobileModal: React.FC<UsedMobileModalProps> = ({
 
   // Filter only used products
   const usedProducts = useMemo(() => {
-    return products.filter(p => p.condition === 'used');
+    return (products || []).filter(p => p && p.condition === 'used');
   }, [products]);
 
   // Summary statistics for used phones

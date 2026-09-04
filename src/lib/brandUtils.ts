@@ -66,6 +66,10 @@ export function groupProductsByBrand(products: Product[]): BrandStockSummary[] {
     products: Product[];
   }>();
 
+  if (!products || !Array.isArray(products)) {
+    return [];
+  }
+
   products.forEach(product => {
     const brand = getBrandFromProductName(product.name);
     let entry = brandMap.get(brand);

@@ -1445,7 +1445,7 @@ export default function App() {
             <div className="flex flex-col gap-3 sm:gap-4">
               <button 
                 onClick={() => {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, tempImei1: '', tempImei2: '', imei_units: [], imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                   setIsAddProductOpen(true);
                 }}
                 className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100"
@@ -1498,9 +1498,10 @@ export default function App() {
             </div>
 
             <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+              {/* 1. Brand New */}
               <SummaryItem 
                 icon={ShoppingCart} 
-                label="Total Quantity" 
+                label="Brand New" 
                 value={stats.totalQuantity} 
                 suffix=" Pcs"
                 colorClass="bg-blue-600" 
@@ -1508,6 +1509,7 @@ export default function App() {
                 subtitleClass="text-blue-700 bg-blue-50 border-blue-200"
                 onClick={() => setIsBrandStockOpen(true)}
               />
+              {/* 2. Used Mobile */}
               <SummaryItem 
                 icon={RotateCcw} 
                 label="Used Mobile" 
@@ -1518,42 +1520,7 @@ export default function App() {
                 subtitleClass="text-amber-800 bg-amber-50 border-amber-200"
                 onClick={() => setIsUsedMobileModalOpen(true)}
               />
-              <SummaryItem 
-                icon={Layers} 
-                label="Product Summary" 
-                value={products.length} 
-                suffix=" Models"
-                colorClass="bg-indigo-600" 
-                subtitle="Click for Summary"
-                subtitleClass="text-indigo-800 bg-indigo-50 border-indigo-200"
-                onClick={() => setIsProductSummaryOpen(true)}
-              />
-              <SummaryItem 
-                symbol="৳" 
-                label="Total Stock" 
-                value={stats.totalStockValue} 
-                prefix="৳"
-                colorClass="bg-blue-500" 
-              />
-              <SummaryItem 
-                icon={Calendar} 
-                label="Today Sale" 
-                value={stats.todayCount} 
-                colorClass="bg-blue-500" 
-              />
-              <SummaryItem 
-                symbol="৳" 
-                label="Today Profit" 
-                value={stats.todayProfit} 
-                prefix="৳"
-                colorClass="bg-emerald-500" 
-              />
-              <SummaryItem 
-                icon={TrendingUp} 
-                label="Monthly Sale" 
-                value={stats.monthlyCount} 
-                colorClass="bg-purple-500" 
-              />
+              {/* 3. Bar Phone */}
               <SummaryItem 
                 icon={Smartphone} 
                 label="Bar Phone" 
@@ -1564,6 +1531,48 @@ export default function App() {
                 subtitleClass="text-blue-800 bg-blue-50 border-blue-200"
                 onClick={() => setIsBarPhoneModalOpen(true)}
               />
+              {/* 4. Product Summary */}
+              <SummaryItem 
+                icon={Layers} 
+                label="Product Summary" 
+                value={products.length} 
+                suffix=" Models"
+                colorClass="bg-indigo-600" 
+                subtitle="Click for Summary"
+                subtitleClass="text-indigo-800 bg-indigo-50 border-indigo-200"
+                onClick={() => setIsProductSummaryOpen(true)}
+              />
+              {/* 5. Total Stock */}
+              <SummaryItem 
+                symbol="৳" 
+                label="Total Stock" 
+                value={stats.totalStockValue} 
+                prefix="৳"
+                colorClass="bg-blue-500" 
+              />
+              {/* 6. Today Sale */}
+              <SummaryItem 
+                icon={Calendar} 
+                label="Today Sale" 
+                value={stats.todayCount} 
+                colorClass="bg-blue-500" 
+              />
+              {/* 7. Today Profit */}
+              <SummaryItem 
+                symbol="৳" 
+                label="Today Profit" 
+                value={stats.todayProfit} 
+                prefix="৳"
+                colorClass="bg-emerald-500" 
+              />
+              {/* 8. Monthly Sale */}
+              <SummaryItem 
+                icon={TrendingUp} 
+                label="Monthly Sale" 
+                value={stats.monthlyCount} 
+                colorClass="bg-purple-500" 
+              />
+              {/* 9. Monthly Profit */}
               <SummaryItem 
                 symbol="৳" 
                 label="Monthly Profit" 
@@ -1880,48 +1889,6 @@ export default function App() {
         title={newProduct.id ? (newProduct.condition === 'used' ? "Update Used Product" : "Update Product") : (newProduct.condition === 'used' ? "Add Used Product (পুরাতন পণ্য)" : "Add New Product (নতুন পণ্য)")}
       >
         <form onSubmit={handleAddProduct} className="space-y-4">
-          {/* Condition Selection Card */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Product Condition (পণ্যের অবস্থা)</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setNewProduct({ ...newProduct, condition: 'new' })}
-                className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
-                  newProduct.condition === 'new'
-                    ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-sm ring-1 ring-blue-500'
-                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Brand New</div>
-                  <div className="text-[11px] text-gray-500">নতুন ইনটেক পণ্য</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setNewProduct({ ...newProduct, condition: 'used' })}
-                className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
-                  newProduct.condition === 'used'
-                    ? 'border-amber-600 bg-amber-50/70 text-amber-900 shadow-sm ring-1 ring-amber-500'
-                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'used' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                  <RotateCcw className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Used / 2nd Hand</div>
-                  <div className="text-[11px] text-gray-500">ব্যবহৃত / পুরাতন পণ্য</div>
-                </div>
-              </button>
-            </div>
-          </div>
-
           {/* Bar Phone Checkbox */}
           <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1944,8 +1911,52 @@ export default function App() {
             </label>
           </div>
 
+          {/* Condition Selection Card (Only for Smart / Standard Phones) */}
+          {!newProduct.is_bar_phone && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Product Condition (পণ্যের অবস্থা)</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewProduct({ ...newProduct, condition: 'new' })}
+                  className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                    newProduct.condition === 'new'
+                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-sm ring-1 ring-blue-500'
+                      : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm">Brand New</div>
+                    <div className="text-[11px] text-gray-500">নতুন ইনটেক পণ্য</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewProduct({ ...newProduct, condition: 'used' })}
+                  className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                    newProduct.condition === 'used'
+                      ? 'border-amber-600 bg-amber-50/70 text-amber-900 shadow-sm ring-1 ring-amber-500'
+                      : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'used' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm">Used / 2nd Hand</div>
+                    <div className="text-[11px] text-gray-500">ব্যবহৃত / পুরাতন পণ্য</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* If Used, show Condition Notes Card */}
-          {newProduct.condition === 'used' && (
+          {!newProduct.is_bar_phone && newProduct.condition === 'used' && (
             <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-2">
               <label className="block text-xs font-bold text-amber-900">Used Device Condition & Notes (ঐচ্ছিক বিবরণ)</label>
               <input
@@ -1997,6 +2008,7 @@ export default function App() {
                       color: p.color || '',
                       condition: p.condition || 'new',
                       condition_note: p.condition_note || '',
+                      is_bar_phone: Boolean(p.is_bar_phone),
                       imeis: [],
                       imei_colors: {},
                       image: null,
@@ -2004,14 +2016,14 @@ export default function App() {
                     });
                   }
                 } else {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                 }
               }}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
               <option value="">-- Create New Product --</option>
               {sortedProducts.map(p => (
-                <option key={p.id} value={p.id}>{p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+                <option key={p.id} value={p.id}>{p.condition === 'used' ? '[USED] ' : ''}{p.is_bar_phone ? '[BAR] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
               ))}
             </select>
           </div>
@@ -2024,85 +2036,91 @@ export default function App() {
               value={newProduct.name}
               onChange={e => setNewProduct({...newProduct, name: e.target.value})}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-              placeholder="e.g. iPhone 15 Pro"
+              placeholder={newProduct.is_bar_phone ? "e.g. Nokia 105, Itel 2163, Symphony L25..." : "e.g. iPhone 15 Pro"}
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Product Image</label>
-            <div className="flex items-center gap-4">
-              {newProduct.image_file_id && !newProduct.image && (
-                <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
-                  <TelegramImage fileId={newProduct.image_file_id} />
-                </div>
-              )}
-              {newProduct.image && (
-                <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
-                  <img src={URL.createObjectURL(newProduct.image)} alt="Preview" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div className="flex-1">
-                <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <ImageIcon className="w-5 h-5" />
-                    <span className="text-xs font-bold">{newProduct.image ? newProduct.image.name : "Choose Image"}</span>
-                  </div>
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) setNewProduct({...newProduct, image: file});
-                    }}
-                  />
-                </label>
-                {uploadProgress['product_image'] !== undefined && (
-                  <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${uploadProgress['product_image']}%` }} />
+          {!newProduct.is_bar_phone && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Product Image</label>
+              <div className="flex items-center gap-4">
+                {newProduct.image_file_id && !newProduct.image && (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                    <TelegramImage fileId={newProduct.image_file_id} />
                   </div>
                 )}
+                {newProduct.image && (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                    <img src={URL.createObjectURL(newProduct.image)} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <label className="flex flex-col items-center justify-center w-full h-16 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 transition-colors cursor-pointer">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <ImageIcon className="w-5 h-5" />
+                      <span className="text-xs font-bold">{newProduct.image ? newProduct.image.name : "Choose Image"}</span>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) setNewProduct({...newProduct, image: file});
+                      }}
+                    />
+                  </label>
+                  {uploadProgress['product_image'] !== undefined && (
+                    <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 transition-all" style={{ width: `${uploadProgress['product_image']}%` }} />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {!newProduct.is_bar_phone && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">RAM</label>
+                <input 
+                  type="text"
+                  value={newProduct.ram}
+                  onChange={e => setNewProduct({...newProduct, ram: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. 8GB"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">ROM</label>
+                <input 
+                  type="text"
+                  value={newProduct.rom}
+                  onChange={e => setNewProduct({...newProduct, rom: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. 256GB"
+                />
+              </div>
+            </div>
+          )}
+
+          {!newProduct.is_bar_phone && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Color</label>
+              <input 
+                type="text"
+                value={newProduct.color}
+                onChange={e => setNewProduct({...newProduct, color: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="e.g. Titanium Black, Deep Purple, Blue, Gold..."
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">RAM</label>
-              <input 
-                type="text"
-                value={newProduct.ram}
-                onChange={e => setNewProduct({...newProduct, ram: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="e.g. 8GB"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">ROM</label>
-              <input 
-                type="text"
-                value={newProduct.rom}
-                onChange={e => setNewProduct({...newProduct, rom: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="e.g. 256GB"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Color</label>
-            <input 
-              type="text"
-              value={newProduct.color}
-              onChange={e => setNewProduct({...newProduct, color: e.target.value})}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="e.g. Titanium Black, Deep Purple, Blue, Gold..."
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Purchase Price</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Purchase Price (ক্রয় মূল্য)</label>
               <input 
                 required
                 type="number"
@@ -2113,7 +2131,7 @@ export default function App() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Selling Price</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Selling Price (বিক্রয় মূল্য)</label>
               <input 
                 required
                 type="number"
@@ -2132,52 +2150,75 @@ export default function App() {
               </span>
             </div>
           </div>
-          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
-            <label className="block text-sm font-bold text-gray-700 flex items-center justify-between">
-              <span>IMEI Units (প্রতিটি কোয়ান্টিটির জন্য ২ টি করে IMEI)</span>
-              <span className="text-xs text-blue-600 font-bold">{newProduct.imei_units.length} Units Added</span>
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input 
-                type="text"
-                placeholder="IMEI 1..."
-                value={newProduct.tempImei1}
-                onChange={e => setNewProduct({...newProduct, tempImei1: e.target.value})}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    // auto fill from previous match if length >= 8
-                    const val = e.currentTarget.value.trim();
-                    if (val.length >= 8 && !newProduct.name) {
-                      const tac = val.substring(0, 8);
-                      const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
-                      if (match) {
-                        setNewProduct(prev => ({
-                          ...prev,
-                          name: match.name,
-                          ram: match.ram || '',
-                          rom: match.rom || '',
-                          color: match.color || '',
-                          purchase_price: String(match.purchase_price),
-                          selling_price: String(match.selling_price)
-                        }));
-                      }
-                    }
-                  }
-                }}
-                className="px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
-              />
-              <div className="flex gap-2">
+
+          {!newProduct.is_bar_phone && (
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
+              <label className="block text-sm font-bold text-gray-700 flex items-center justify-between">
+                <span>IMEI Units (প্রতিটি কোয়ান্টিটির জন্য ২ টি করে IMEI)</span>
+                <span className="text-xs text-blue-600 font-bold">{newProduct.imei_units.length} Units Added</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input 
                   type="text"
-                  placeholder="IMEI 2..."
-                  value={newProduct.tempImei2}
-                  onChange={e => setNewProduct({...newProduct, tempImei2: e.target.value})}
+                  placeholder="IMEI 1..."
+                  value={newProduct.tempImei1}
+                  onChange={e => setNewProduct({...newProduct, tempImei1: e.target.value})}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
+                      // auto fill from previous match if length >= 8
+                      const val = e.currentTarget.value.trim();
+                      if (val.length >= 8 && !newProduct.name) {
+                        const tac = val.substring(0, 8);
+                        const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
+                        if (match) {
+                          setNewProduct(prev => ({
+                            ...prev,
+                            name: match.name,
+                            ram: match.ram || '',
+                            rom: match.rom || '',
+                            color: match.color || '',
+                            purchase_price: String(match.purchase_price),
+                            selling_price: String(match.selling_price)
+                          }));
+                        }
+                      }
+                    }
+                  }}
+                  className="px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
+                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    placeholder="IMEI 2..."
+                    value={newProduct.tempImei2}
+                    onChange={e => setNewProduct({...newProduct, tempImei2: e.target.value})}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const i1 = newProduct.tempImei1.trim();
+                        const i2 = e.currentTarget.value.trim();
+                        if (!i1 || !i2) {
+                          alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
+                          return;
+                        }
+                        const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
+                        setNewProduct({
+                          ...newProduct,
+                          imei_units: units,
+                          tempImei1: '',
+                          tempImei2: '',
+                          quantity: String(units.length)
+                        });
+                      }
+                    }}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
                       const i1 = newProduct.tempImei1.trim();
-                      const i2 = e.currentTarget.value.trim();
+                      const i2 = newProduct.tempImei2.trim();
                       if (!i1 || !i2) {
                         alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
                         return;
@@ -2190,63 +2231,44 @@ export default function App() {
                         tempImei2: '',
                         quantity: String(units.length)
                       });
-                    }
-                  }}
-                  className="flex-1 px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const i1 = newProduct.tempImei1.trim();
-                    const i2 = newProduct.tempImei2.trim();
-                    if (!i1 || !i2) {
-                      alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
-                      return;
-                    }
-                    const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
-                    setNewProduct({
-                      ...newProduct,
-                      imei_units: units,
-                      tempImei1: '',
-                      tempImei2: '',
-                      quantity: String(units.length)
-                    });
-                  }}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shrink-0 shadow-sm"
-                >
-                  + Add Unit
-                </button>
+                    }}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shrink-0 shadow-sm"
+                  >
+                    + Add Unit
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {newProduct.imei_units.length > 0 && (
-              <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
-                {newProduct.imei_units.map((unit, idx) => (
-                  <div key={idx} className="bg-white border border-blue-200 px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
-                    <div className="font-mono text-gray-800 flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-blue-700">Unit {idx + 1}:</span>
-                      <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">1: {unit.imei1}</span>
-                      <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">2: {unit.imei2}</span>
+              {newProduct.imei_units.length > 0 && (
+                <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
+                  {newProduct.imei_units.map((unit, idx) => (
+                    <div key={idx} className="bg-white border border-blue-200 px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
+                      <div className="font-mono text-gray-800 flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-blue-700">Unit {idx + 1}:</span>
+                        <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">1: {unit.imei1}</span>
+                        <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">2: {unit.imei2}</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const units = newProduct.imei_units.filter((_, i) => i !== idx);
+                          setNewProduct({
+                            ...newProduct,
+                            imei_units: units,
+                            quantity: String(units.length)
+                          });
+                        }} 
+                        className="text-red-500 hover:text-red-700 font-bold ml-2 p-1"
+                      >
+                        &times; Delete
+                      </button>
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const units = newProduct.imei_units.filter((_, i) => i !== idx);
-                        setNewProduct({
-                          ...newProduct,
-                          imei_units: units,
-                          quantity: String(units.length)
-                        });
-                      }} 
-                      className="text-red-500 hover:text-red-700 font-bold ml-2 p-1"
-                    >
-                      &times; Delete
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
               <span>{newProduct.id ? "Stock Adjustment (use - to decrease)" : "Initial Quantity (Stock)"}</span>

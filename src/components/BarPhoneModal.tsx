@@ -19,7 +19,7 @@ interface BarPhoneModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
-  onAddProduct: (isBarPhone: boolean) => void;
+  onAddProduct?: (isBarPhone: boolean) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
   onSellProduct: (product: Product, isCashSale?: boolean) => void;
@@ -38,7 +38,7 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
 
   // Filter only bar phone products
   const barProducts = useMemo(() => {
-    return products.filter(p => p.is_bar_phone);
+    return (products || []).filter(p => p && p.is_bar_phone);
   }, [products]);
 
   // Summary statistics for bar phones
@@ -114,13 +114,6 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onAddProduct(true)}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-200 transition-all"
-              >
-                <Plus className="w-4 h-4" /> Add Bar Phone
-              </button>
               <button
                 type="button"
                 onClick={onClose}
@@ -201,14 +194,8 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
                 </div>
                 <h3 className="text-base font-bold text-gray-700">No Bar Phones Found</h3>
                 <p className="text-xs text-gray-400 max-w-sm">
-                  {searchQuery ? 'No bar phone matches your search query.' : 'You haven\'t added any bar phones yet. Click "Add Bar Phone" to get started.'}
+                  {searchQuery ? 'No bar phone matches your search query.' : 'No bar phones in stock. Add products with "Bar Phone" option enabled from the main Add Product section.'}
                 </p>
-                <button
-                  onClick={() => onAddProduct(true)}
-                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm"
-                >
-                  + Add First Bar Phone
-                </button>
               </div>
             ) : (
               <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-2xs">
