@@ -23,7 +23,24 @@ import {
   ArrowDownCircle,
   Clock,
   Calculator,
-  Camera
+  Camera,
+  AlertCircle,
+  ExternalLink,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  Tag,
+  Printer,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Eye,
+  Check,
+  Layers,
+  ChevronLeft,
+  Smartphone,
+  Boxes,
+  CheckCircle2
 } from 'lucide-react';
 import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
@@ -54,26 +71,46 @@ import { uploadImageToTelegram, getTelegramImageUrl } from './services/telegramS
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { BarcodeScanner } from './components/BarcodeScanner';
 import { PhotoCapture } from './components/PhotoCapture';
+import { BrandStockModal } from './components/BrandStockModal';
+import { UsedMobileModal } from './components/UsedMobileModal';
+import { ProductSummaryModal } from './components/ProductSummaryModal';
 
 // --- Components ---
 
-const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }) => (
+const Modal = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children,
+  maxWidthClass = "max-w-2xl",
+  headerRight
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  title: string; 
+  children: React.ReactNode;
+  maxWidthClass?: string;
+  headerRight?: React.ReactNode;
+}) => (
   <AnimatePresence>
     {isOpen && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+          className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidthClass} max-h-[92vh] overflow-hidden flex flex-col`}
         >
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
             <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <X className="w-6 h-6 text-gray-500" />
-            </button>
+            <div className="flex items-center gap-2">
+              {headerRight}
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
           </div>
-          <div className="p-6 overflow-y-auto flex-1">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1">
             {children}
           </div>
         </motion.div>
@@ -97,15 +134,49 @@ const Counter = ({ value, prefix = "", suffix = "" }: { value: number; prefix?: 
   return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
 };
 
-const SummaryItem = ({ icon: Icon, label, value, colorClass, symbol = "", prefix = "", suffix = "" }: { icon?: any; label: string; value: string | number; colorClass: string; symbol?: string; prefix?: string; suffix?: string }) => (
-  <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+const SummaryItem = ({ 
+  icon: Icon, 
+  label, 
+  value, 
+  colorClass, 
+  symbol = "", 
+  prefix = "", 
+  suffix = "",
+  subtitle,
+  subtitleClass,
+  onClick
+}: { 
+  icon?: any; 
+  label: string; 
+  value: string | number; 
+  colorClass: string; 
+  symbol?: string; 
+  prefix?: string; 
+  suffix?: string;
+  subtitle?: string;
+  subtitleClass?: string;
+  onClick?: () => void;
+}) => (
+  <div 
+    onClick={onClick}
+    className={`flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all ${
+      onClick ? 'cursor-pointer hover:border-blue-400 hover:shadow-blue-100/50 active:scale-[0.98]' : ''
+    }`}
+  >
     <div className={`p-3 rounded-full mb-3 ${colorClass}`}>
       {Icon ? <Icon className="w-6 h-6 text-white" /> : <span className="text-xl font-bold text-white leading-none">{symbol}</span>}
     </div>
-    <span className="text-sm font-medium text-gray-500 mb-1">{label}</span>
+    <span className="text-sm font-medium text-gray-500 mb-1 text-center">{label}</span>
     <span className="text-lg font-bold text-gray-900">
       {typeof value === 'number' ? <Counter value={value} prefix={prefix} suffix={suffix} /> : value}
     </span>
+    {subtitle && (
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 border ${
+        subtitleClass || 'text-blue-800 bg-blue-50 border-blue-200'
+      }`}>
+        {subtitle}
+      </span>
+    )}
   </div>
 );
 
@@ -297,6 +368,8 @@ const ADMIN_EMAILS = ['mehedyhossain160619@gmail.com', 'likee350@gmail.com'];
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
@@ -307,11 +380,23 @@ export default function App() {
   const [activePhotoCapture, setActivePhotoCapture] = useState<'sale' | 'editSale' | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
+  const [saleTab, setSaleTab] = useState<'emi' | 'cash'>('emi');
   const [isCashSaleOpen, setIsCashSaleOpen] = useState(false);
   const [isSaleListOpen, setIsSaleListOpen] = useState(false);
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isMobileBazarOpen, setIsMobileBazarOpen] = useState(false);
+  const [isBrandStockOpen, setIsBrandStockOpen] = useState(false);
+  const [isUsedMobileModalOpen, setIsUsedMobileModalOpen] = useState(false);
+  const [isProductSummaryOpen, setIsProductSummaryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isClearStockModalOpen, setIsClearStockModalOpen] = useState(false);
+  const [notAvailableImei, setNotAvailableImei] = useState<{ isOpen: boolean; imei: string; source: 'sale' | 'cashSale' | 'search' }>({
+    isOpen: false,
+    imei: '',
+    source: 'sale'
+  });
   const [isEmiCalcOpen, setIsEmiCalcOpen] = useState(false);
   const [emiConfig, setEmiConfig] = useState({
     productId: '',
@@ -328,6 +413,7 @@ export default function App() {
 
   // Form States
   const [productSearch, setProductSearch] = useState('');
+  const [productConditionFilter, setProductConditionFilter] = useState<'all' | 'new' | 'used'>('all');
   const [reportStartDate, setReportStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [reportEndDate, setReportEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -340,62 +426,36 @@ export default function App() {
     ram: '',
     rom: '',
     color: '',
+    condition: 'new' as 'new' | 'used',
+    condition_note: '',
     imeis: [] as string[],
     imei_colors: {} as Record<string, string>,
     image: null as File | null,
     image_file_id: ''
   });
-  const [newSale, setNewSale] = useState(() => {
-    const saved = localStorage.getItem('draft_newSale');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          images: [] as File[],
-          sale_date: parsed.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-        };
-      } catch { }
-    }
-    return {
-      customer_name: '',
-      phone_number: '',
-      nid_number: '',
-      address: '',
-      guarantor_number: '',
-      product_id: '',
-      color: '',
-      images: [] as File[],
-      sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
-    };
+  const [saleImeiInput, setSaleImeiInput] = useState('');
+  const [cashImeiInput, setCashImeiInput] = useState('');
+
+  const [newSale, setNewSale] = useState({
+    customer_name: '',
+    phone_number: '',
+    nid_number: '',
+    address: '',
+    guarantor_number: '',
+    product_id: '',
+    imei: '',
+    color: '',
+    images: [] as File[],
+    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
 
-  useEffect(() => {
-    const draft = { ...newSale, images: [] };
-    localStorage.setItem('draft_newSale', JSON.stringify(draft));
-  }, [newSale.customer_name, newSale.phone_number, newSale.nid_number, newSale.address, newSale.guarantor_number, newSale.product_id, newSale.color, newSale.imei, newSale.sale_date]);
-  const [cashSale, setCashSale] = useState(() => {
-    const saved = localStorage.getItem('draft_cashSale');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          sale_date: parsed.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-        };
-      } catch { }
-    }
-    return {
-      product_id: '',
-      color: '',
-      actual_sale_price: '',
-      sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
-    };
+  const [cashSale, setCashSale] = useState({
+    product_id: '',
+    imei: '',
+    color: '',
+    actual_sale_price: '',
+    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
-
-  useEffect(() => {
-    localStorage.setItem('draft_cashSale', JSON.stringify(cashSale));
-  }, [cashSale]);
   const [newMobileBazar, setNewMobileBazar] = useState({
     sale_id: '',
     down_payment: ''
@@ -451,10 +511,33 @@ export default function App() {
   }, [user]);
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setLoginError(null);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (error) {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
       console.error('Login failed:', error);
+      const code = error?.code || '';
+      if (code === 'auth/network-request-failed') {
+        setLoginError(
+          'Network request failed. This commonly occurs inside the AI Studio preview iframe because browser security restrictions block cross-origin popups. Please click "Open in New Tab to Sign In" below to log in.'
+        );
+      } else if (code === 'auth/popup-blocked') {
+        setLoginError('Sign-in popup was blocked by your browser. Please allow popups or open the app in a new tab.');
+      } else if (code === 'auth/popup-closed-by-user') {
+        setLoginError('Sign-in popup was closed before completing. Please try again.');
+      } else if (code === 'auth/cancelled-popup-request') {
+        setLoginError('Sign-in request was cancelled. Please try again.');
+      } else if (code === 'auth/unauthorized-domain') {
+        setLoginError('This domain is not authorized in Firebase Authentication settings. Please open the app in a new tab.');
+      } else {
+        setLoginError(error?.message || 'Login failed. Please check your network connection and try again.');
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -528,7 +611,7 @@ export default function App() {
       const sellingPrice = sale.actual_sale_price || product.selling_price;
       return sellingPrice - product.purchase_price;
     }
-    return sale.profit; // Fallback to stored profit
+    return sale.profit || 0; // Fallback to stored profit
   }, [products]);
 
   const currentMonthSales = useMemo(() => {
@@ -542,7 +625,7 @@ export default function App() {
     return currentMonthSales.reduce((acc, s) => {
       if (s.actual_sale_price) return acc + s.actual_sale_price;
       const product = products.find(p => p.id === s.product_id);
-      return acc + (product?.selling_price || 0);
+      return acc + (product?.selling_price || ((s.profit || 0) + (s.purchase_price || 0)) || 0);
     }, 0);
   }, [currentMonthSales, products]);
 
@@ -562,6 +645,10 @@ export default function App() {
       return acc + r.net_amount;
     }, 0);
 
+    const usedProducts = products.filter(p => p.condition === 'used');
+    const usedQuantity = usedProducts.reduce((acc, p) => acc + p.quantity, 0);
+    const usedProductsCount = usedProducts.length;
+
     return {
       todayCount: todaySales.length,
       todayProfit,
@@ -571,6 +658,8 @@ export default function App() {
       totalProducts: products.length,
       totalQuantity: products.reduce((acc, p) => acc + p.quantity, 0),
       totalStockValue: products.reduce((acc, p) => acc + (p.purchase_price * p.quantity), 0),
+      usedQuantity,
+      usedProductsCount,
       mobileBazarTotal
     };
   }, [sales, products, mobileBazarRecords, currentMonthTotal, calculateDynamicProfit]);
@@ -583,6 +672,35 @@ export default function App() {
     } catch (error) {
       console.error('Failed to delete product:', error);
       alert('Failed to delete product');
+    }
+  };
+
+  const handleClearAllStock = async () => {
+    if (products.length === 0) {
+      alert('বর্তমানে স্টকে কোনো পণ্য নেই, স্টক ইতিমধ্যে সম্পূর্ণ খালি।');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      // Chunk batch operations to stay safely within Firestore batch limits
+      const chunkSize = 400;
+      for (let i = 0; i < products.length; i += chunkSize) {
+        const chunk = products.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(p => {
+          batch.delete(doc(db, 'products', p.id));
+        });
+        await batch.commit();
+      }
+      setIsClearStockModalOpen(false);
+      setIsSettingsOpen(false);
+      alert('সফল হয়েছে! বর্তমান স্টক সম্পূর্ণ খালি করা হয়েছে। আপনার পূর্বের সকল বিক্রয় তথ্য (Sales History) অক্ষত ও ১০০% সুরক্ষিত আছে। এখন আপনি নতুন স্টক এন্ট্রি করতে পারবেন।');
+    } catch (error: any) {
+      console.error('Failed to clear stock:', error);
+      handleFirestoreError(error, OperationType.DELETE, 'products');
+      alert(`স্টক খালি করতে সমস্যা হয়েছে: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -614,6 +732,8 @@ export default function App() {
           ram: newProduct.ram,
           rom: newProduct.rom,
           color: newProduct.color,
+          condition: newProduct.condition || 'new',
+          condition_note: newProduct.condition_note || '',
           image_file_id: imageFileId
         };
         if (newProduct.imeis && newProduct.imeis.length > 0) {
@@ -636,6 +756,8 @@ export default function App() {
           ram: newProduct.ram,
           rom: newProduct.rom,
           color: newProduct.color,
+          condition: newProduct.condition || 'new',
+          condition_note: newProduct.condition_note || '',
           imeis: newProduct.imeis || [],
           imei_colors: newProduct.imei_colors || {},
           image_file_id: imageFileId,
@@ -643,7 +765,7 @@ export default function App() {
         });
       }
 
-      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
       setIsAddProductOpen(false);
     } catch (error) {
       console.error('Failed to add/update product:', error);
@@ -769,6 +891,7 @@ export default function App() {
       });
       localStorage.removeItem('draft_cashSale');
       setIsCashSaleOpen(false);
+      setIsSaleProductOpen(false);
     } catch (error) {
       console.error('Failed to record cash sale:', error);
     } finally {
@@ -918,17 +1041,22 @@ export default function App() {
 
   const filteredProducts = useMemo(() => {
     let result = sortedProducts;
+    if (productConditionFilter !== 'all') {
+      result = result.filter(p => (p.condition || 'new') === productConditionFilter);
+    }
     if (productSearch) {
       const search = productSearch.toLowerCase();
-      result = sortedProducts.filter(p => 
+      result = result.filter(p => 
         p.name.toLowerCase().includes(search) ||
+        (p.condition_note && p.condition_note.toLowerCase().includes(search)) ||
+        (p.condition === 'used' && ('used পুরাতন 2nd hand second hand'.includes(search))) ||
         (p.ram && p.ram.toLowerCase().includes(search)) ||
         (p.rom && p.rom.toLowerCase().includes(search)) ||
         (p.imeis && p.imeis.some(imei => imei.toLowerCase().includes(search)))
       );
     }
     return result;
-  }, [sortedProducts, productSearch]);
+  }, [sortedProducts, productConditionFilter, productSearch]);
 
   const filteredSales = useMemo(() => {
     if (!saleSearch) return sales;
@@ -944,12 +1072,112 @@ export default function App() {
     const reportSales = sales.filter(s => {
       const date = format(parseISO(s.sale_date), 'yyyy-MM-dd');
       return date >= reportStartDate && date <= reportEndDate;
-    });
-    const totalProfit = reportSales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
-    const totalSales = reportSales.length;
+    }).sort((a, b) => parseISO(a.sale_date).getTime() - parseISO(b.sale_date).getTime());
 
-    return { totalSales, totalProfit, reportSales };
-  }, [sales, reportStartDate, reportEndDate, calculateDynamicProfit]);
+    let totalRetailPrice = 0;
+    let totalMrp = 0;
+    let totalProfit = 0;
+
+    const rows = reportSales.map((s, idx) => {
+      const product = products.find(p => p.id === s.product_id);
+      const retailPrice = (s.purchase_price !== undefined && s.purchase_price !== null)
+        ? s.purchase_price
+        : (product?.purchase_price ?? Math.max(0, (s.actual_sale_price || 0) - s.profit));
+      const mrp = s.actual_sale_price ?? product?.selling_price ?? 0;
+      const profit = calculateDynamicProfit(s);
+
+      totalRetailPrice += (retailPrice || 0);
+      totalMrp += (mrp || 0);
+      totalProfit += profit;
+
+      const modelSpec = [
+        s.product_name,
+        (s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : '',
+        s.color ? `[${s.color}]` : ''
+      ].filter(Boolean).join(' ');
+
+      return {
+        sl: idx + 1,
+        id: s.id,
+        saleDate: format(parseISO(s.sale_date), 'dd/MM/yyyy'),
+        time: format(parseISO(s.sale_date), 'hh:mm a'),
+        model: modelSpec,
+        customerName: s.customer_name,
+        customerMobile: s.phone_number || '-',
+        retailPrice: retailPrice || 0,
+        mrp: mrp || 0,
+        profit: profit
+      };
+    });
+
+    return { 
+      totalSales: reportSales.length, 
+      totalRetailPrice,
+      totalMrp,
+      totalProfit, 
+      rows,
+      reportSales 
+    };
+  }, [sales, products, reportStartDate, reportEndDate, calculateDynamicProfit]);
+
+  const handleExportMonthlyCSV = () => {
+    if (!monthlyReportStats.rows.length) {
+      alert('No sales found for the selected date range.');
+      return;
+    }
+    const headers = ['SL', 'Date', 'Model', 'Customer Mobile', 'Customer Name', 'Retail Price (BDT)', 'MRP (BDT)', 'Profit (BDT)'];
+    const csvRows = [
+      headers.join(','),
+      ...monthlyReportStats.rows.map(r => [
+        r.sl,
+        `"${r.saleDate}"`,
+        `"${r.model.replace(/"/g, '""')}"`,
+        `"${r.customerMobile}"`,
+        `"${r.customerName.replace(/"/g, '""')}"`,
+        r.retailPrice,
+        r.mrp,
+        r.profit
+      ].join(',')),
+      ['', '', '"TOTAL"', '', '', monthlyReportStats.totalRetailPrice, monthlyReportStats.totalMrp, monthlyReportStats.totalProfit].join(',')
+    ];
+
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sales_report_${reportStartDate}_to_${reportEndDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('printable-a4-sheet');
+    if (!element) {
+      window.print();
+      return;
+    }
+    setIsGeneratingPdf(true);
+    try {
+      // @ts-ignore
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = (html2pdfModule.default || html2pdfModule) as any;
+      const opt = {
+        margin: [6, 6, 6, 6],
+        filename: `Sales_Report_${reportStartDate}_to_${reportEndDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error('Failed to generate PDF via html2pdf:', err);
+      window.print();
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   const mobileBazarPreview = useMemo(() => {
     const sale = sales.find(s => s.id === newMobileBazar.sale_id);
@@ -969,23 +1197,65 @@ export default function App() {
   }
 
   if (!user) {
+    const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-10 rounded-3xl shadow-xl w-full max-w-md text-center"
+          className="bg-white p-8 sm:p-10 rounded-3xl shadow-xl w-full max-w-md text-center border border-gray-100"
         >
           <LogoBranding fileId={logoFileId} className="w-20 h-20 mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Mehedy Telecom</h1>
-          <p className="text-gray-500 mb-8">Manage your inventory and sales efficiently</p>
+          <p className="text-gray-500 mb-6 text-sm">Manage your inventory and sales efficiently</p>
+
+          {loginError && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-800 leading-relaxed">
+                  <p className="font-semibold text-amber-900 mb-1">Sign-in Notice</p>
+                  <p>{loginError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button 
             onClick={handleLogin}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3"
+            disabled={isLoggingIn}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-[0.99]"
           >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
-            Sign in with Google
+            {isLoggingIn ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
+                <span>Sign in with Google</span>
+              </>
+            )}
           </button>
+
+          {isInIframe && (
+            <div className="mt-5 pt-4 border-t border-gray-100 text-center">
+              <p className="text-xs text-gray-400 mb-2">
+                Running in preview frame? If Google Sign-in fails due to browser restrictions:
+              </p>
+              <a
+                href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 text-xs text-blue-600 hover:text-blue-700 font-semibold bg-blue-50 hover:bg-blue-100 py-2.5 px-4 rounded-xl transition-all w-full border border-blue-200"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open App in New Tab to Sign In
+              </a>
+            </div>
+          )}
         </motion.div>
       </div>
     );
@@ -1040,6 +1310,24 @@ export default function App() {
                 type="text"
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const query = productSearch.trim();
+                    if (query) {
+                      // Check if it's an IMEI-like search (numeric / digits with length >= 8) or exact match
+                      const isDigits = /^\d{6,}$/.test(query);
+                      const isImeiFound = products.some(p => p.imeis?.some(i => i.toLowerCase().includes(query.toLowerCase())));
+                      const isNameFound = products.some(p => p.name.toLowerCase().includes(query.toLowerCase()) || (p.color && p.color.toLowerCase().includes(query.toLowerCase())));
+                      if (!isImeiFound && !isNameFound && isDigits) {
+                        setNotAvailableImei({
+                          isOpen: true,
+                          imei: query,
+                          source: 'search'
+                        });
+                      }
+                    }
+                  }
+                }}
                 placeholder="Search products..."
                 className="w-full pl-6 pr-6 py-0.5 sm:py-1 text-[9px] sm:text-xs rounded-md border border-gray-200 bg-white/90 focus:ring-1 focus:ring-blue-500 outline-none placeholder-gray-400 font-medium"
               />
@@ -1062,18 +1350,18 @@ export default function App() {
 
             {/* Quick search suggestions dropdown */}
             {productSearch && (
-              <div className="absolute left-0 top-full mt-1.5 w-56 sm:w-64 bg-white border border-gray-150 rounded-xl shadow-xl py-1.5 z-50 max-h-48 overflow-y-auto">
+              <div className="absolute left-0 top-full mt-1.5 w-64 sm:w-72 bg-white border border-gray-150 rounded-xl shadow-xl py-1.5 z-50 max-h-56 overflow-y-auto">
                 <div className="px-3 py-1 bg-gray-50 border-b border-gray-100 text-[9px] sm:text-[10px] text-gray-450 font-black tracking-widest uppercase flex justify-between items-center sticky top-0 z-10">
                   <span>Matched ({filteredProducts.length})</span>
                   <button onClick={() => setProductSearch('')} className="hover:text-red-500 normal-case font-bold">Clear</button>
                 </div>
                 {filteredProducts.length === 0 ? (
-                  <div className="px-3 py-2 text-[10px] sm:text-xs text-gray-500 italic">No products found</div>
+                  <div className="px-3 py-2 text-[10px] sm:text-xs text-gray-500 italic">No products found matching "{productSearch}"</div>
                 ) : (
                   filteredProducts.map(p => (
                     <div 
                       key={p.id}
-                      className="px-3 py-1.5 hover:bg-violet-50/50 border-b border-gray-50 last:border-0 cursor-pointer flex flex-col gap-0.5"
+                      className="px-3 py-2 hover:bg-violet-50/50 border-b border-gray-50 last:border-0 cursor-pointer flex flex-col gap-1 transition-colors"
                       onClick={() => {
                         const elem = document.getElementById(`product-row-${p.id}`);
                         if (elem) {
@@ -1086,15 +1374,33 @@ export default function App() {
                       }}
                     >
                       <div className="flex justify-between items-start gap-1">
-                        <span className="font-bold text-[10px] sm:text-xs text-gray-800 line-clamp-1">{p.name}</span>
-                        <span className={`text-[9px] font-bold px-1 rounded ${p.quantity > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                          {p.quantity > 0 ? `${p.quantity} Pcs` : 'Out'}
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="font-bold text-[10px] sm:text-xs text-gray-800 line-clamp-1">{p.name}</span>
+                          {p.condition === 'used' && (
+                            <span className="text-[8px] font-black uppercase px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0">Used</span>
+                          )}
+                        </div>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${p.quantity > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                          {p.quantity > 0 ? `${p.quantity} In Stock` : 'Out'}
                         </span>
                       </div>
-                      <div className="flex justify-between text-[9px] sm:text-[10px] text-gray-500 font-semibold">
-                        <span>{p.ram ? `${p.ram}/${p.rom}` : 'No Variant'}</span>
+                      <div className="flex justify-between items-center text-[9px] sm:text-[10px] text-gray-500 font-semibold">
+                        <div className="flex items-center gap-1.5">
+                          <span>{p.ram ? `${p.ram}/${p.rom}` : 'No RAM/ROM'}</span>
+                          {p.color && (
+                            <span className="text-gray-600 font-medium bg-gray-100 px-1 rounded text-[9px]">
+                              {p.color}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-violet-600 font-extrabold">৳{p.selling_price.toLocaleString()}</span>
                       </div>
+                      {p.imeis && p.imeis.length > 0 && (
+                        <div className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
+                          <span>IMEI:</span>
+                          <span className="truncate max-w-[170px]">{p.imeis.join(', ')}</span>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -1111,7 +1417,7 @@ export default function App() {
             <div className="flex flex-col gap-3 sm:gap-4">
               <button 
                 onClick={() => {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                   setIsAddProductOpen(true);
                 }}
                 className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100"
@@ -1120,10 +1426,34 @@ export default function App() {
               </button>
               
               <button 
-                onClick={() => setIsSaleProductOpen(true)}
+                onClick={() => {
+                  setSaleImeiInput('');
+                  setCashImeiInput('');
+                  setNewSale({
+                    customer_name: '',
+                    phone_number: '',
+                    nid_number: '',
+                    address: '',
+                    guarantor_number: '',
+                    product_id: '',
+                    imei: '',
+                    color: '',
+                    images: [],
+                    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                  });
+                  setCashSale({
+                    product_id: '',
+                    imei: '',
+                    color: '',
+                    actual_sale_price: '',
+                    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                  });
+                  setSaleTab('emi');
+                  setIsSaleProductOpen(true);
+                }}
                 className="flex items-center justify-center gap-2 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100"
               >
-                <ShoppingCart className="w-5 h-5" /> Sale Product
+                <ShoppingCart className="w-5 h-5" /> Sell Product
               </button>
               <button 
                 onClick={() => setIsSaleListOpen(true)}
@@ -1132,47 +1462,43 @@ export default function App() {
                 <List className="w-5 h-5" /> Sale List
               </button>
               <button 
-                onClick={() => setIsCashSaleOpen(true)}
-                className="flex items-center justify-center gap-2 py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-100"
-              >
-                <CreditCard className="w-5 h-5" /> Cash Sale
-              </button>
-              <button 
                 onClick={() => setIsMonthlyReportOpen(true)}
                 className="flex items-center justify-center gap-2 py-4 bg-gray-800 hover:bg-black text-white font-bold rounded-xl transition-all shadow-lg shadow-gray-200"
               >
                 <BarChart3 className="w-5 h-5" /> Monthly Report
               </button>
-              <button 
-                onClick={() => setIsMobileBazarOpen(true)}
-                className="flex items-center justify-center gap-2 py-4 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200"
-              >
-                <ArrowDownCircle className="w-5 h-5" /> Mobile Bazar
-              </button>
-              <button 
-                onClick={() => {
-                  setEmiConfig({ productId: '', downPayment: '', interestRate: '', serviceCharge: '', months: 3 });
-                  setIsEmiCalcOpen(true);
-                }}
-                className="flex items-center justify-center gap-2 py-4 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-violet-200"
-              >
-                <Calculator className="w-5 h-5" /> EMI Calculator
-              </button>
             </div>
 
             <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-              <SummaryItem 
-                icon={Package} 
-                label="Total Items" 
-                value={stats.totalProducts} 
-                colorClass="bg-indigo-500" 
-              />
               <SummaryItem 
                 icon={ShoppingCart} 
                 label="Total Quantity" 
                 value={stats.totalQuantity} 
                 suffix=" Pcs"
                 colorClass="bg-blue-600" 
+                subtitle="Click for Brand List"
+                subtitleClass="text-blue-700 bg-blue-50 border-blue-200"
+                onClick={() => setIsBrandStockOpen(true)}
+              />
+              <SummaryItem 
+                icon={RotateCcw} 
+                label="Used Mobile" 
+                value={stats.usedQuantity} 
+                suffix=" Pcs"
+                colorClass="bg-amber-600" 
+                subtitle={`${stats.usedProductsCount} Models`}
+                subtitleClass="text-amber-800 bg-amber-50 border-amber-200"
+                onClick={() => setIsUsedMobileModalOpen(true)}
+              />
+              <SummaryItem 
+                icon={Layers} 
+                label="Product Summary" 
+                value={products.length} 
+                suffix=" Models"
+                colorClass="bg-indigo-600" 
+                subtitle="Click for Summary"
+                subtitleClass="text-indigo-800 bg-indigo-50 border-indigo-200"
+                onClick={() => setIsProductSummaryOpen(true)}
               />
               <SummaryItem 
                 symbol="৳" 
@@ -1213,13 +1539,6 @@ export default function App() {
                 value={stats.monthlyProfit} 
                 prefix="৳"
                 colorClass="bg-orange-500" 
-              />
-              <SummaryItem 
-                symbol="৳" 
-                label="Mobile Bazar" 
-                value={stats.mobileBazarTotal} 
-                prefix="৳"
-                colorClass="bg-blue-600" 
               />
             </div>
           </div>
@@ -1310,12 +1629,47 @@ export default function App() {
         <div className="h-px bg-gray-200 mb-8" />
 
         {/* Product Stock List */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div id="stock-list-section" className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Package className="w-6 h-6 text-blue-600" />
-              Product Stock List
-            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Package className="w-6 h-6 text-blue-600" />
+                Product Stock List
+              </h2>
+              {/* Filter Tabs */}
+              <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1 text-xs font-bold">
+                <button
+                  onClick={() => setProductConditionFilter('all')}
+                  className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  All ({products.length})
+                </button>
+                <button
+                  onClick={() => setProductConditionFilter('new')}
+                  className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  Brand New ({products.filter(p => (p.condition || 'new') === 'new').length})
+                </button>
+                <button
+                  onClick={() => setProductConditionFilter('used')}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${productConditionFilter === 'used' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                >
+                  <RotateCcw className="w-3 h-3 text-amber-600" />
+                  Used ({products.filter(p => p.condition === 'used').length})
+                </button>
+              </div>
+
+              {isSuperAdmin && products.length > 0 && (
+                <button
+                  onClick={() => setIsClearStockModalOpen(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors shadow-2xs"
+                  title="বর্তমান স্টক সম্পূর্ণ খালি করুন (পূর্বের বিক্রয় ইতিহাস সুরক্ষিত থাকবে)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Stock</span>
+                </button>
+              )}
+            </div>
             {productSearch && (
               <span className="text-xs bg-gray-150 text-gray-600 font-semibold px-2 py-1 rounded-md border border-gray-200">
                 Matched {filteredProducts.length} list {filteredProducts.length === 1 ? 'item' : 'items'}
@@ -1351,7 +1705,17 @@ export default function App() {
                           )}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-bold text-gray-900">{product.name}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-gray-900">{product.name}</span>
+                            {product.condition === 'used' && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                <RotateCcw className="w-2.5 h-2.5" /> Used
+                              </span>
+                            )}
+                          </div>
+                          {product.condition_note && (
+                            <span className="text-[10px] text-amber-700 italic font-medium">{product.condition_note}</span>
+                          )}
                           {product.color && product.color !== '' && (
                             <div className="flex items-center gap-1 mt-1">
                               <div 
@@ -1417,6 +1781,10 @@ export default function App() {
                               ram: product.ram || '',
                               rom: product.rom || '',
                               color: product.color || '',
+                              condition: product.condition || 'new',
+                              condition_note: product.condition_note || '',
+                              imeis: [],
+                              imei_colors: {},
                               image: null,
                               image_file_id: product.image_file_id || ''
                             });
@@ -1440,8 +1808,22 @@ export default function App() {
                 ))}
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                      No products found.
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                        <Package className="w-10 h-10 text-gray-300" />
+                        <p className="font-bold text-gray-700 text-sm">স্টকে কোনো পণ্য নেই (No Stock in Inventory)</p>
+                        <p className="text-xs text-gray-400">নতুন পণ্য এন্ট্রি করতে নিচে ক্লিক করুন</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                            setIsAddProductOpen(true);
+                          }}
+                          className="mt-2 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-100"
+                        >
+                          <Plus className="w-4 h-4" /> Add New Product
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1464,9 +1846,84 @@ export default function App() {
       <Modal 
         isOpen={isAddProductOpen} 
         onClose={() => setIsAddProductOpen(false)} 
-        title={newProduct.id ? "Update Existing Product" : "Add New Product"}
+        title={newProduct.id ? (newProduct.condition === 'used' ? "Update Used Product" : "Update Product") : (newProduct.condition === 'used' ? "Add Used Product (পুরাতন পণ্য)" : "Add New Product (নতুন পণ্য)")}
       >
         <form onSubmit={handleAddProduct} className="space-y-4">
+          {/* Condition Selection Card */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">Product Condition (পণ্যের অবস্থা)</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setNewProduct({ ...newProduct, condition: 'new' })}
+                className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                  newProduct.condition === 'new'
+                    ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-sm ring-1 ring-blue-500'
+                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">Brand New</div>
+                  <div className="text-[11px] text-gray-500">নতুন ইনটেক পণ্য</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNewProduct({ ...newProduct, condition: 'used' })}
+                className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
+                  newProduct.condition === 'used'
+                    ? 'border-amber-600 bg-amber-50/70 text-amber-900 shadow-sm ring-1 ring-amber-500'
+                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${newProduct.condition === 'used' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm">Used / 2nd Hand</div>
+                  <div className="text-[11px] text-gray-500">ব্যবহৃত / পুরাতন পণ্য</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* If Used, show Condition Notes Card */}
+          {newProduct.condition === 'used' && (
+            <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-2">
+              <label className="block text-xs font-bold text-amber-900">Used Device Condition & Notes (ঐচ্ছিক বিবরণ)</label>
+              <input
+                type="text"
+                value={newProduct.condition_note}
+                onChange={e => setNewProduct({ ...newProduct, condition_note: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-amber-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none bg-white text-sm"
+                placeholder="e.g. 98% Fresh, Battery 89%, Box included"
+              />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {['Like New (99%)', 'Good Condition', 'Minor Scratches', 'Box & Charger', 'Only Device', 'Battery 85%+'].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      const current = newProduct.condition_note;
+                      if (!current) {
+                        setNewProduct({ ...newProduct, condition_note: tag });
+                      } else if (!current.includes(tag)) {
+                        setNewProduct({ ...newProduct, condition_note: `${current}, ${tag}` });
+                      }
+                    }}
+                    className="text-[10px] font-semibold bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full transition-colors"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Select Existing Product (Optional)</label>
             <select 
@@ -1484,19 +1941,24 @@ export default function App() {
                       quantity: '', // Reset quantity for restock
                       ram: p.ram || '',
                       rom: p.rom || '',
+                      color: p.color || '',
+                      condition: p.condition || 'new',
+                      condition_note: p.condition_note || '',
+                      imeis: [],
+                      imei_colors: {},
                       image: null,
                       image_file_id: p.image_file_id || ''
                     });
                   }
                 } else {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', image: null, image_file_id: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                 }
               }}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
               <option value="">-- Create New Product --</option>
               {sortedProducts.map(p => (
-                <option key={p.id} value={p.id}>{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+                <option key={p.id} value={p.id}>{p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
               ))}
             </select>
           </div>
@@ -1575,24 +2037,14 @@ export default function App() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Color</label>
-            <div className="flex gap-3">
-              {[
-                { name: 'Black', class: 'bg-black ring-black' },
-                { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
-                { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
-                { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
-                { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
-              ].map(color => (
-                <button
-                  key={color.name}
-                  type="button"
-                  onClick={() => setNewProduct({...newProduct, color: color.name})}
-                  className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${newProduct.color === color.name ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
-                  title={color.name}
-                />
-              ))}
-            </div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Color</label>
+            <input 
+              type="text"
+              value={newProduct.color}
+              onChange={e => setNewProduct({...newProduct, color: e.target.value})}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="e.g. Titanium Black, Deep Purple, Blue, Gold..."
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1736,144 +2188,270 @@ export default function App() {
         </form>
       </Modal>
 
-      {/* Sale Product Modal */}
+      {/* Unified Sell Product Modal */}
       <Modal 
         isOpen={isSaleProductOpen} 
         onClose={() => setIsSaleProductOpen(false)} 
-        title="Record New Sale"
+        title={saleTab === 'emi' ? "Sell Product (EMI / Regular)" : "Sell Product (Cash Sale)"}
       >
-        <form onSubmit={handleSaleProduct} className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Customer Information</h3>
-              <div className="w-1/2">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Sale Date & Time</label>
-                <input 
-                  required
-                  type="datetime-local"
-                  value={newSale.sale_date}
-                  onChange={e => setNewSale({...newSale, sale_date: e.target.value})}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
-                <input 
-                  required
-                  type="text"
-                  value={newSale.customer_name}
-                  onChange={e => setNewSale({...newSale, customer_name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+        {/* Sale Type Selector Tabs */}
+        <div className="mb-6">
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+            Select Sale Type (বিক্রয়ের ধরণ)
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setSaleTab('emi')}
+              className={`p-3 sm:p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all text-left cursor-pointer ${
+                saleTab === 'emi'
+                  ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-sm ring-1 ring-emerald-500'
+                  : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${saleTab === 'emi' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+                <FileText className="w-5 h-5" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Phone Number (Bkash)</label>
-                <input 
-                  required
-                  type="tel"
-                  value={newSale.phone_number}
-                  onChange={e => setNewSale({...newSale, phone_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+                <div className="font-bold text-sm leading-tight">EMI / Regular Sell</div>
+                <div className="text-[11px] text-gray-500">কিস্তি ও ডকুমেন্টসহ</div>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">NID Number</label>
-                <input 
-                  required
-                  type="text"
-                  value={newSale.nid_number}
-                  onChange={e => setNewSale({...newSale, nid_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Guarantor Phone</label>
-                <input 
-                  type="tel"
-                  value={newSale.guarantor_number}
-                  onChange={e => setNewSale({...newSale, guarantor_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Full Address</label>
-              <textarea 
-                required
-                value={newSale.address}
-                onChange={e => setNewSale({...newSale, address: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none"
-              />
-            </div>
-          </div>
+            </button>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Product Selection</h3>
-            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-              <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
-                <span>Scan IMEI to Select Product</span>
-                <span className="text-xs text-blue-600 font-normal">Press Enter or use Camera</span>
-              </label>
-              <div className="flex gap-2">
-                <input 
-                  type="text"
-                  placeholder="Scan IMEI here..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const imei = e.currentTarget.value.trim();
-                      if (imei) {
-                        const match = products.find(p => p.imeis?.includes(imei));
+            <button
+              type="button"
+              onClick={() => setSaleTab('cash')}
+              className={`p-3 sm:p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all text-left cursor-pointer ${
+                saleTab === 'cash'
+                  ? 'border-orange-500 bg-orange-50/80 text-orange-950 shadow-sm ring-1 ring-orange-400'
+                  : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${saleTab === 'cash' ? 'bg-orange-500 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-sm leading-tight">Cash Sell</div>
+                <div className="text-[11px] text-gray-500">দ্রুত নগদ মূল্যে বিক্রয়</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {saleTab === 'emi' ? (
+          /* EMI / Regular Sale Form */
+          <form onSubmit={handleSaleProduct} className="space-y-6">
+            {/* Step 1: Product Selection & IMEI Scan */}
+            <div className="space-y-4 bg-gray-50/80 p-4 sm:p-5 rounded-2xl border border-gray-200/80">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  <span>Step 1: Scan IMEI or Select Product</span>
+                </h3>
+                {newSale.product_id && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                    ✓ Product Selected
+                  </span>
+                )}
+              </div>
+
+              {/* Scan IMEI Input */}
+              <div className="bg-white p-3 sm:p-4 rounded-xl border border-blue-200 shadow-xs">
+                <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+                  <span>Scan IMEI to Select Product (IMEI স্ক্যান করুন)</span>
+                  <span className="text-[11px] text-blue-600 font-normal">Press Enter or Camera</span>
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={saleImeiInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSaleImeiInput(val);
+                      const trimmed = val.trim();
+                      if (!trimmed) {
+                        // User cleared IMEI -> form completely blank
+                        setNewSale(prev => ({
+                          customer_name: '',
+                          phone_number: '',
+                          nid_number: '',
+                          address: '',
+                          guarantor_number: '',
+                          product_id: '',
+                          imei: '',
+                          color: '',
+                          images: [],
+                          sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                        }));
+                      } else {
+                        const match = products.find(p => p.imeis?.includes(trimmed));
                         if (match) {
                           setNewSale(prev => ({
                             ...prev,
                             product_id: match.id,
-                            imei: imei,
-                            color: match.imei_colors?.[imei] || match.color || ''
+                            imei: trimmed,
+                            color: match.imei_colors?.[trimmed] || match.color || ''
                           }));
-                        } else {
-                          alert("Product not found with this IMEI in stock.");
+                        } else if (newSale.product_id) {
+                          // While typing or changing IMEI away from matched product, blank out product info
+                          setNewSale(prev => ({
+                            customer_name: '',
+                            phone_number: '',
+                            nid_number: '',
+                            address: '',
+                            guarantor_number: '',
+                            product_id: '',
+                            imei: '',
+                            color: '',
+                            images: [],
+                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                          }));
                         }
                       }
-                    }
-                  }}
-                  className="flex-1 w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setActiveScanner('sale')}
-                  className="px-4 py-3 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center text-blue-600 shadow-sm"
-                >
-                  <Camera className="w-5 h-5" />
-                </button>
+                    }}
+                    placeholder="Scan / Type IMEI here & press Enter..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const imei = saleImeiInput.trim();
+                        if (imei) {
+                          const match = products.find(p => p.imeis?.includes(imei));
+                          if (match) {
+                            setNewSale(prev => ({
+                              ...prev,
+                              product_id: match.id,
+                              imei: imei,
+                              color: match.imei_colors?.[imei] || match.color || ''
+                            }));
+                          } else {
+                            setNewSale(prev => ({
+                              customer_name: '',
+                              phone_number: '',
+                              nid_number: '',
+                              address: '',
+                              guarantor_number: '',
+                              product_id: '',
+                              imei: '',
+                              color: '',
+                              images: [],
+                              sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                            }));
+                            setNotAvailableImei({
+                              isOpen: true,
+                              imei: imei,
+                              source: 'sale'
+                            });
+                          }
+                        } else {
+                          setNewSale(prev => ({
+                            customer_name: '',
+                            phone_number: '',
+                            nid_number: '',
+                            address: '',
+                            guarantor_number: '',
+                            product_id: '',
+                            imei: '',
+                            color: '',
+                            images: [],
+                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                          }));
+                        }
+                      }
+                    }}
+                    className="flex-1 w-full px-4 py-2.5 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-mono"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setActiveScanner('sale')}
+                    className="px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center text-blue-600 shadow-xs"
+                    title="Camera Scanner"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+                </div>
+                {newSale.imei && (
+                  <div className="mt-2.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
+                    <span className="text-xs text-emerald-800 font-bold font-mono">
+                      ✓ Scanned EMI IMEI: {newSale.imei}
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setSaleImeiInput('');
+                        setNewSale(prev => ({
+                          customer_name: '',
+                          phone_number: '',
+                          nid_number: '',
+                          address: '',
+                          guarantor_number: '',
+                          product_id: '',
+                          imei: '',
+                          color: '',
+                          images: [],
+                          sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                        }));
+                      }} 
+                      className="text-xs text-red-500 hover:text-red-700 font-bold ml-2 cursor-pointer"
+                    >
+                      &times; Remove
+                    </button>
+                  </div>
+                )}
               </div>
-              {newSale.imei && (
-                <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
-                  ✓ Scanned EMI IMEI: {newSale.imei}
-                  <button type="button" onClick={() => setNewSale(prev => ({...prev, imei: ''}))} className="text-red-500 hover:text-red-700 ml-2">&times; Remove</button>
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
-              <select 
-                required
-                value={newSale.product_id}
-                onChange={e => setNewSale({...newSale, product_id: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              >
-                <option value="">Choose a product...</option>
-                {sortedProducts.map(p => (
-                  <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
-                  </option>
-                ))}
-              </select>
+
+              {/* Select Product Dropdown */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)
+                </label>
+                <select 
+                  required
+                  value={newSale.product_id}
+                  onChange={e => {
+                    const selectedId = e.target.value;
+                    if (!selectedId) {
+                      setSaleImeiInput('');
+                      setNewSale(prev => ({
+                        customer_name: '',
+                        phone_number: '',
+                        nid_number: '',
+                        address: '',
+                        guarantor_number: '',
+                        product_id: '',
+                        imei: '',
+                        color: '',
+                        images: [],
+                        sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                      }));
+                      return;
+                    }
+                    const matchedProd = products.find(p => p.id === selectedId);
+                    const selectedImei = matchedProd?.imeis?.includes(saleImeiInput.trim())
+                      ? saleImeiInput.trim()
+                      : (matchedProd?.imeis?.[0] || '');
+                    setSaleImeiInput(selectedImei);
+                    setNewSale(prev => ({
+                      ...prev,
+                      product_id: selectedId,
+                      imei: selectedImei,
+                      color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || ''
+                    }));
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm font-medium"
+                >
+                  <option value="">Choose a product from inventory...</option>
+                  {sortedProducts.map(p => (
+                    <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
+                      {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Product Preview Card */}
               {newSale.product_id && (
-                <div className="mt-4 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-gray-200 flex-shrink-0">
+                <div className="flex items-center gap-4 p-3.5 bg-white rounded-xl border border-blue-100 shadow-xs">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex-shrink-0">
                     {products.find(p => p.id === newSale.product_id)?.image_file_id ? (
                       <TelegramImage fileId={products.find(p => p.id === newSale.product_id)!.image_file_id!} />
                     ) : (
@@ -1882,328 +2460,1087 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <div>
-                    <p className="font-bold text-gray-900">{products.find(p => p.id === newSale.product_id)?.name}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-gray-900 text-sm">{products.find(p => p.id === newSale.product_id)?.name}</p>
+                      {products.find(p => p.id === newSale.product_id)?.condition === 'used' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">Used</span>
+                      )}
+                    </div>
+                    {products.find(p => p.id === newSale.product_id)?.condition_note && (
+                      <p className="text-[11px] text-amber-700 italic font-medium">{products.find(p => p.id === newSale.product_id)?.condition_note}</p>
+                    )}
                     <p className="text-xs text-gray-500">
                       {products.find(p => p.id === newSale.product_id)?.ram}/{products.find(p => p.id === newSale.product_id)?.rom}
                     </p>
-                    <p className="text-sm font-black text-blue-600 mt-1">৳{products.find(p => p.id === newSale.product_id)?.selling_price.toLocaleString()}</p>
+                    <p className="text-sm font-black text-blue-600 mt-0.5">৳{products.find(p => p.id === newSale.product_id)?.selling_price.toLocaleString()}</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {newSale.product_id && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Select Sold Color</label>
-                <div className="flex gap-3">
-                  {[
-                    { name: 'Black', class: 'bg-black ring-black' },
-                    { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
-                    { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
-                    { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
-                    { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
-                  ].map(color => (
-                    <button
-                      key={color.name}
-                      type="button"
-                      onClick={() => setNewSale({...newSale, color: color.name})}
-                      className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${newSale.color === color.name || (!newSale.color && products.find(p => p.id === newSale.product_id)?.color === color.name) ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
-                      title={color.name}
-                    />
-                  ))}
+            {/* Step 2: Customer Details & Images - ONLY unlocked when product_id is selected */}
+            {!newSale.product_id ? (
+              <div className="p-8 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60 text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-100">
+                  <ShoppingCart className="w-6 h-6" />
                 </div>
+                <p className="text-sm font-bold text-gray-800">
+                  প্রথমে IMEI স্ক্যান করুন অথবা প্রোডাক্ট সিলেক্ট করুন
+                </p>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                  প্রোডাক্ট সিলেক্ট না করা পর্যন্ত নিচের সকল ফর্ম কলাম সম্পূর্ণ খালি থাকবে।
+                </p>
               </div>
-            )}
-          </div>
+            ) : (
+              <>
+                {/* Product Color */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Product Color (রং)</label>
+                  <input 
+                    type="text"
+                    value={newSale.color || products.find(p => p.id === newSale.product_id)?.color || ''}
+                    onChange={e => setNewSale({...newSale, color: e.target.value})}
+                    placeholder="e.g. Titanium Blue, Black, Green..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-medium"
+                  />
+                </div>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Image Upload (Telegram)</h3>
-              <button 
-                type="button" 
-                onClick={() => setActivePhotoCapture('sale')}
-                className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-200 transition-colors"
-              >
-                <Camera className="w-4 h-4" /> Take Photo
-              </button>
-            </div>
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*"
-                onChange={e => {
-                  if (e.target.files) {
-                    setNewSale({...newSale, images: Array.from(e.target.files)});
-                  }
-                }}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-              <ImageIcon className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-gray-600">Click to upload images</p>
-              <p className="text-xs text-gray-400">Minimum 1 image required</p>
-              {newSale.images.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {newSale.images.map((f, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                      <div className="flex justify-between text-xs font-bold text-gray-600">
-                        <span>{f.name}</span>
-                        <span>{uploadProgress[f.name] || 0}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-blue-600 h-full transition-all duration-300"
-                          style={{ width: `${uploadProgress[f.name] || 0}%` }}
-                        />
-                      </div>
+                {/* Customer Information */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Information</h3>
+                    <div className="w-1/2">
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Sale Date & Time</label>
+                      <input 
+                        required
+                        type="datetime-local"
+                        value={newSale.sale_date}
+                        onChange={e => setNewSale({...newSale, sale_date: e.target.value})}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
+                      <input 
+                        required
+                        type="text"
+                        value={newSale.customer_name}
+                        onChange={e => setNewSale({...newSale, customer_name: e.target.value})}
+                        placeholder="ক্রেতার নাম লিখুন"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Phone Number (Bkash)</label>
+                      <input 
+                        required
+                        type="tel"
+                        value={newSale.phone_number}
+                        onChange={e => setNewSale({...newSale, phone_number: e.target.value})}
+                        placeholder="017xxxxxxxx"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">NID Number</label>
+                      <input 
+                        required
+                        type="text"
+                        value={newSale.nid_number}
+                        onChange={e => setNewSale({...newSale, nid_number: e.target.value})}
+                        placeholder="জাতীয় পরিচয়পত্র নম্বর"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Guarantor Phone</label>
+                      <input 
+                        type="tel"
+                        value={newSale.guarantor_number}
+                        onChange={e => setNewSale({...newSale, guarantor_number: e.target.value})}
+                        placeholder="জামিনদারের মোবাইল নম্বর"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Full Address</label>
+                    <textarea 
+                      required
+                      value={newSale.address}
+                      onChange={e => setNewSale({...newSale, address: e.target.value})}
+                      placeholder="গ্রাহকের সম্পূর্ণ ঠিকানা লিখুন..."
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none h-20 resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Image Upload */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Image Upload (Telegram)</h3>
+                    <button 
+                      type="button" 
+                      onClick={() => setActivePhotoCapture('sale')}
+                      className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-200 transition-colors"
+                    >
+                      <Camera className="w-4 h-4" /> Take Photo
+                    </button>
+                  </div>
+                  <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative bg-gray-50/50">
+                    <input 
+                      type="file" 
+                      multiple 
+                      accept="image/*"
+                      onChange={e => {
+                        if (e.target.files) {
+                          setNewSale({...newSale, images: Array.from(e.target.files)});
+                        }
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-1.5" />
+                    <p className="text-sm font-bold text-gray-600">Click to upload images</p>
+                    <p className="text-xs text-gray-400">Minimum 1 image required</p>
+                    {newSale.images.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {newSale.images.map((f, i) => (
+                          <div key={i} className="flex flex-col gap-1">
+                            <div className="flex justify-between text-xs font-bold text-gray-600">
+                              <span>{f.name}</span>
+                              <span>{uploadProgress[f.name] || 0}%</span>
+                            </div>
+                            <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-blue-600 h-full transition-all duration-300"
+                                style={{ width: `${uploadProgress[f.name] || 0}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button 
+                  disabled={isSubmitting}
+                  type="submit"
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ShoppingCart className="w-5 h-5" /> Confirm EMI Sale</>}
+                </button>
+              </>
+            )}
+          </form>
+        ) : (
+          /* Cash Sale Form */
+          <form onSubmit={handleCashSale} className="space-y-5">
+            {/* Step 1: Scan IMEI or Select Product */}
+            <div className="space-y-4 bg-gray-50/80 p-4 sm:p-5 rounded-2xl border border-gray-200/80">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  <span>Step 1: Scan IMEI or Select Product</span>
+                </h3>
+                {cashSale.product_id && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                    ✓ Product Selected
+                  </span>
+                )}
+              </div>
+
+              {/* Scan IMEI */}
+              <div className="bg-white p-3 sm:p-4 rounded-xl border border-emerald-200 shadow-xs">
+                <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+                  <span>Scan IMEI to Select Product (IMEI স্ক্যান করুন)</span>
+                  <span className="text-[11px] text-emerald-600 font-normal">Press Enter or Camera</span>
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={cashImeiInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCashImeiInput(val);
+                      const trimmed = val.trim();
+                      if (!trimmed) {
+                        // Cleared IMEI -> form completely blank
+                        setCashSale(prev => ({
+                          product_id: '',
+                          imei: '',
+                          color: '',
+                          actual_sale_price: '',
+                          sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                        }));
+                      } else {
+                        const match = products.find(p => p.imeis?.includes(trimmed));
+                        if (match) {
+                          setCashSale(prev => ({
+                            ...prev,
+                            product_id: match.id,
+                            imei: trimmed,
+                            color: match.imei_colors?.[trimmed] || match.color || '',
+                            actual_sale_price: String(match.selling_price)
+                          }));
+                        } else if (cashSale.product_id) {
+                          // While typing or changing IMEI away from matched product, blank out product info
+                          setCashSale(prev => ({
+                            product_id: '',
+                            imei: '',
+                            color: '',
+                            actual_sale_price: '',
+                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                          }));
+                        }
+                      }
+                    }}
+                    placeholder="Scan / Type IMEI here & press Enter..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const imei = cashImeiInput.trim();
+                        if (imei) {
+                          const match = products.find(p => p.imeis?.includes(imei));
+                          if (match) {
+                            setCashSale(prev => ({
+                              ...prev,
+                              product_id: match.id,
+                              imei: imei,
+                              color: match.imei_colors?.[imei] || match.color || '',
+                              actual_sale_price: String(match.selling_price)
+                            }));
+                          } else {
+                            setCashSale(prev => ({
+                              product_id: '',
+                              imei: '',
+                              color: '',
+                              actual_sale_price: '',
+                              sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                            }));
+                            setNotAvailableImei({
+                              isOpen: true,
+                              imei: imei,
+                              source: 'cashSale'
+                            });
+                          }
+                        } else {
+                          setCashSale(prev => ({
+                            product_id: '',
+                            imei: '',
+                            color: '',
+                            actual_sale_price: '',
+                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                          }));
+                        }
+                      }
+                    }}
+                    className="flex-1 w-full px-4 py-2.5 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm font-mono"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setActiveScanner('cashSale')}
+                    className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors flex items-center justify-center text-emerald-600 shadow-xs"
+                    title="Camera Scanner"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+                </div>
+                {cashSale.imei && (
+                  <div className="mt-2.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
+                    <span className="text-xs text-emerald-800 font-bold font-mono">
+                      ✓ Scanned Cash IMEI: {cashSale.imei}
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setCashImeiInput('');
+                        setCashSale(prev => ({
+                          product_id: '',
+                          imei: '',
+                          color: '',
+                          actual_sale_price: '',
+                          sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                        }));
+                      }} 
+                      className="text-xs text-red-500 hover:text-red-700 font-bold ml-2 cursor-pointer"
+                    >
+                      &times; Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Select Product Dropdown */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)
+                </label>
+                <select 
+                  required
+                  value={cashSale.product_id}
+                  onChange={e => {
+                    const selectedId = e.target.value;
+                    if (!selectedId) {
+                      setCashImeiInput('');
+                      setCashSale(prev => ({
+                        product_id: '',
+                        imei: '',
+                        color: '',
+                        actual_sale_price: '',
+                        sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                      }));
+                      return;
+                    }
+                    const matchedProd = products.find(p => p.id === selectedId);
+                    const selectedImei = matchedProd?.imeis?.includes(cashImeiInput.trim())
+                      ? cashImeiInput.trim()
+                      : (matchedProd?.imeis?.[0] || '');
+                    setCashImeiInput(selectedImei);
+                    setCashSale(prev => ({
+                      ...prev,
+                      product_id: selectedId,
+                      imei: selectedImei,
+                      color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
+                      actual_sale_price: matchedProd ? String(matchedProd.selling_price) : ''
+                    }));
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm font-medium"
+                >
+                  <option value="">Choose a product from inventory...</option>
+                  {sortedProducts.map(p => (
+                    <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
+                      {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
+                    </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Product Preview Card */}
+              {cashSale.product_id && (
+                <div className="flex items-center gap-4 p-3.5 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex-shrink-0">
+                    {products.find(p => p.id === cashSale.product_id)?.image_file_id ? (
+                      <TelegramImage fileId={products.find(p => p.id === cashSale.product_id)!.image_file_id!} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-6 h-6 text-gray-300" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-gray-900 text-sm">{products.find(p => p.id === cashSale.product_id)?.name}</p>
+                      {products.find(p => p.id === cashSale.product_id)?.condition === 'used' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">Used</span>
+                      )}
+                    </div>
+                    {products.find(p => p.id === cashSale.product_id)?.condition_note && (
+                      <p className="text-[11px] text-amber-700 italic font-medium">{products.find(p => p.id === cashSale.product_id)?.condition_note}</p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      {products.find(p => p.id === cashSale.product_id)?.ram}/{products.find(p => p.id === cashSale.product_id)?.rom}
+                    </p>
+                    <p className="text-sm font-black text-emerald-600 mt-0.5">৳{products.find(p => p.id === cashSale.product_id)?.selling_price.toLocaleString()}</p>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
 
-          <button 
-            disabled={isSubmitting}
-            type="submit"
-            className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ShoppingCart className="w-5 h-5" /> Confirm Sale</>}
-          </button>
-        </form>
-      </Modal>
-
-      {/* Cash Sale Modal */}
-      <Modal 
-        isOpen={isCashSaleOpen} 
-        onClose={() => setIsCashSaleOpen(false)} 
-        title="Quick Cash Sale"
-      >
-        <form onSubmit={handleCashSale} className="space-y-4">
-          <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
-              <span>Scan IMEI to Select Product</span>
-              <span className="text-xs text-emerald-600 font-normal">Press Enter or use Camera</span>
-            </label>
-            <div className="flex gap-2">
-              <input 
-                type="text"
-                placeholder="Scan IMEI here..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const imei = e.currentTarget.value.trim();
-                    if (imei) {
-                      const match = products.find(p => p.imeis?.includes(imei));
-                      if (match) {
-                        setCashSale(prev => ({
-                          ...prev,
-                          product_id: match.id,
-                          imei: imei,
-                          color: match.imei_colors?.[imei] || match.color || ''
-                        }));
-                      } else {
-                        alert("Product not found with this IMEI in stock.");
-                      }
-                    }
-                  }
-                }}
-                className="flex-1 w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              />
-              <button 
-                type="button"
-                onClick={() => setActiveScanner('cashSale')}
-                className="px-4 py-3 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center text-emerald-600 shadow-sm"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-            </div>
-            {cashSale.imei && (
-              <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1">
-                ✓ Scanned Cash IMEI: {cashSale.imei}
-                <button type="button" onClick={() => setCashSale(prev => ({...prev, imei: ''}))} className="text-red-500 hover:text-red-700 ml-2">&times; Remove</button>
-              </p>
-            )}
-          </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-bold text-gray-700 mb-1">Select Product</label>
-              <select 
-                required
-                value={cashSale.product_id}
-                onChange={e => setCashSale({...cashSale, product_id: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              >
-                <option value="">Choose a product...</option>
-                {sortedProducts.map(p => (
-                  <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="w-1/2">
-              <label className="block text-sm font-bold text-gray-700 mb-1">Sale Date</label>
-              <input 
-                required
-                type="datetime-local"
-                value={cashSale.sale_date}
-                onChange={e => setCashSale({...cashSale, sale_date: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-          </div>
-          {cashSale.product_id && (
-              <div className="mt-4 flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-gray-200 flex-shrink-0">
-                  {products.find(p => p.id === cashSale.product_id)?.image_file_id ? (
-                    <TelegramImage fileId={products.find(p => p.id === cashSale.product_id)!.image_file_id!} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package className="w-6 h-6 text-gray-300" />
-                    </div>
-                  )}
+            {/* Step 2: Cash Sale Price & Profit - ONLY unlocked when product_id is selected */}
+            {!cashSale.product_id ? (
+              <div className="p-8 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60 text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mx-auto border border-orange-100">
+                  <CreditCard className="w-6 h-6" />
                 </div>
+                <p className="text-sm font-bold text-gray-800">
+                  প্রথমে IMEI স্ক্যান করুন অথবা প্রোডাক্ট সিলেক্ট করুন
+                </p>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                  প্রোডাক্ট সিলেক্ট না করা পর্যন্ত নগদ বিক্রয়ের মূল্য ও লাভের কলাম খালি থাকবে।
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Product Color (রং)</label>
+                    <input 
+                      type="text"
+                      value={cashSale.color || products.find(p => p.id === cashSale.product_id)?.color || ''}
+                      onChange={e => setCashSale({...cashSale, color: e.target.value})}
+                      placeholder="e.g. Titanium Blue, Black, Green..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-medium"
+                    />
+                  </div>
+                  <div className="sm:w-1/2">
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Sale Date & Time</label>
+                    <input 
+                      required
+                      type="datetime-local"
+                      value={cashSale.sale_date}
+                      onChange={e => setCashSale({...cashSale, sale_date: e.target.value})}
+                      className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <p className="font-bold text-gray-900">{products.find(p => p.id === cashSale.product_id)?.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {products.find(p => p.id === cashSale.product_id)?.ram}/{products.find(p => p.id === cashSale.product_id)?.rom}
-                  </p>
-                  <p className="text-sm font-black text-blue-600 mt-1">৳{products.find(p => p.id === cashSale.product_id)?.selling_price.toLocaleString()}</p>
-                </div>
-              </div>
-            )}
-          {cashSale.product_id && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Select Sold Color</label>
-              <div className="flex gap-3">
-                {[
-                  { name: 'Black', class: 'bg-black ring-black' },
-                  { name: 'Titanium Gray', class: 'bg-slate-500 ring-slate-500' },
-                  { name: 'Blue', class: 'bg-blue-500 ring-blue-500' },
-                  { name: 'Gold', class: 'bg-yellow-500 ring-yellow-500' },
-                  { name: 'Orange', class: 'bg-orange-500 ring-orange-500' }
-                ].map(color => (
-                  <button
-                    key={color.name}
-                    type="button"
-                    onClick={() => setCashSale({...cashSale, color: color.name})}
-                    className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ${cashSale.color === color.name || (!cashSale.color && products.find(p => p.id === cashSale.product_id)?.color === color.name) ? color.class : 'ring-transparent'} ${color.class.split(' ')[0]} transition-all`}
-                    title={color.name}
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (প্রকৃত বিক্রয় মূল্য - ৳)</label>
+                  <input 
+                    required
+                    type="number"
+                    value={cashSale.actual_sale_price}
+                    onChange={e => setCashSale({...cashSale, actual_sale_price: e.target.value})}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-base font-bold"
+                    placeholder="গ্রাহক কত টাকা প্রদান করেছেন লিখুন"
                   />
-                ))}
-              </div>
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (৳)</label>
-            <input 
-              required
-              type="number"
-              value={cashSale.actual_sale_price}
-              onChange={e => setCashSale({...cashSale, actual_sale_price: e.target.value})}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="Enter amount customer paid"
-            />
-          </div>
-          {cashSale.product_id && (
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-bold text-emerald-800">Calculated Profit</span>
-                <span className="text-lg font-black text-emerald-600">
-                  ৳{Math.max(0, Number(cashSale.actual_sale_price || 0) - (products.find(p => p.id === cashSale.product_id)?.purchase_price || 0))}
-                </span>
-              </div>
-            </div>
-          )}
-          <button 
-            disabled={isSubmitting}
-            type="submit"
-            className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-100 flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CreditCard className="w-5 h-5" /> Complete Cash Sale</>}
-          </button>
-        </form>
+                </div>
+
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-emerald-800">Calculated Profit (মোট লাভ)</span>
+                    <span className="text-lg font-black text-emerald-600">
+                      ৳{Math.max(0, Number(cashSale.actual_sale_price || 0) - (products.find(p => p.id === cashSale.product_id)?.purchase_price || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <button 
+                  disabled={isSubmitting}
+                  type="submit"
+                  className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CreditCard className="w-5 h-5" /> Complete Cash Sale</>}
+                </button>
+              </>
+            )}
+          </form>
+        )}
       </Modal>
 
       {/* Monthly Report Modal */}
       <Modal 
         isOpen={isMonthlyReportOpen} 
         onClose={() => setIsMonthlyReportOpen(false)} 
-        title="Monthly Sales Report"
+        title="Monthly Sales & Profit Sheet"
+        maxWidthClass="max-w-6xl"
+        headerRight={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportMonthlyCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 transition-colors shadow-xs"
+              title="Download Excel / CSV File"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export Excel/CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPrintPreviewOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-xs cursor-pointer"
+              title="Print & PDF Preview"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Print Preview</span>
+            </button>
+          </div>
+        }
       >
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">From Date</label>
-              <input 
-                type="date"
-                value={reportStartDate}
-                onChange={e => setReportStartDate(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              />
+        <style>{`
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 8mm 6mm;
+            }
+            html, body {
+              background: #ffffff !important;
+              color: #000000 !important;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            body * {
+              visibility: hidden !important;
+            }
+            #printable-a4-sheet, #printable-a4-sheet *,
+            #printable-monthly-sheet, #printable-monthly-sheet * {
+              visibility: visible !important;
+            }
+            #printable-a4-sheet,
+            #printable-monthly-sheet {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              display: block !important;
+              background: #ffffff !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .excel-print-table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              font-size: 8.5pt !important;
+              border: 1.5px solid #000000 !important;
+            }
+            .excel-print-table th, .excel-print-table td {
+              border: 1px solid #333333 !important;
+              padding: 3px 5px !important;
+              color: #000000 !important;
+            }
+            .excel-print-table th {
+              background-color: #f1f5f9 !important;
+              font-weight: 700 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .excel-print-table tr {
+              page-break-inside: avoid !important;
+            }
+            .excel-print-total {
+              background-color: #e2e8f0 !important;
+              font-weight: 800 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+        `}</style>
+
+        <div className="space-y-4">
+          {/* Top Controls: Date Filter & Quick Presets */}
+          <div className="no-print bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">From:</label>
+                <input 
+                  type="date"
+                  value={reportStartDate}
+                  onChange={e => setReportStartDate(e.target.value)}
+                  className="px-3 py-1.5 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold text-gray-800"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">To:</label>
+                <input 
+                  type="date"
+                  value={reportEndDate}
+                  onChange={e => setReportEndDate(e.target.value)}
+                  className="px-3 py-1.5 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-semibold text-gray-800"
+                />
+              </div>
             </div>
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">To Date</label>
-              <input 
-                type="date"
-                value={reportEndDate}
-                onChange={e => setReportEndDate(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-              />
+
+            {/* Quick date range buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase">Quick:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  setReportStartDate(format(now, 'yyyy-MM-01'));
+                  setReportEndDate(format(now, 'yyyy-MM-dd'));
+                }}
+                className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-gray-100 text-gray-700 rounded-md border border-gray-200 transition-colors"
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  const firstOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                  const lastOfPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+                  setReportStartDate(format(firstOfPrevMonth, 'yyyy-MM-dd'));
+                  setReportEndDate(format(lastOfPrevMonth, 'yyyy-MM-dd'));
+                }}
+                className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-gray-100 text-gray-700 rounded-md border border-gray-200 transition-colors"
+              >
+                Last Month
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  setReportStartDate(format(now, 'yyyy-MM-dd'));
+                  setReportEndDate(format(now, 'yyyy-MM-dd'));
+                }}
+                className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-gray-100 text-gray-700 rounded-md border border-gray-200 transition-colors"
+              >
+                Today
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 text-center">
-              <p className="text-xs font-black text-blue-400 uppercase mb-1">Total Sales</p>
-              <p className="text-3xl font-black text-blue-600">{monthlyReportStats.totalSales}</p>
+          {/* KPI Summary Cards */}
+          <div className="no-print grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-100">
+              <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Total Sales</p>
+              <p className="text-2xl font-black text-blue-900 mt-0.5">{monthlyReportStats.totalSales} <span className="text-xs font-normal text-blue-600">Pcs</span></p>
             </div>
-            <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-              <p className="text-xs font-black text-emerald-400 uppercase mb-1">Total Profit</p>
-              <p className="text-3xl font-black text-emerald-600">৳{monthlyReportStats.totalProfit}</p>
+            <div className="p-3.5 bg-amber-50/70 rounded-xl border border-amber-100">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Total Retail (Buy)</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-900 mt-0.5">৳{monthlyReportStats.totalRetailPrice.toLocaleString()}</p>
+            </div>
+            <div className="p-3.5 bg-purple-50/70 rounded-xl border border-purple-100">
+              <p className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Total MRP (Sale)</p>
+              <p className="text-xl sm:text-2xl font-black text-purple-900 mt-0.5">৳{monthlyReportStats.totalMrp.toLocaleString()}</p>
+            </div>
+            <div className="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
+              <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Total Profit</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-0.5">৳{monthlyReportStats.totalProfit.toLocaleString()}</p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Sales in this month</h3>
-            <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {monthlyReportStats.reportSales.map(s => (
-                <div key={s.id} className="p-3 bg-gray-50 rounded-xl flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-gray-900 text-sm">{s.customer_name}</p>
-                    <div className="flex items-center gap-1">
-                      <p className="text-[10px] text-gray-500">
-                        {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''}
-                      </p>
-                      {s.color && s.color !== '' && (
-                        <div 
-                          className={`w-2 h-2 rounded-full shadow border-white border ${
-                            s.color === 'Black' ? 'bg-black' :
-                            s.color === 'Titanium Gray' ? 'bg-slate-500' :
-                            s.color === 'Blue' ? 'bg-blue-500' :
-                            s.color === 'Gold' ? 'bg-yellow-500' :
-                            s.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
-                          }`}
-                          title={s.color}
-                        />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-400">{format(parseISO(s.sale_date), 'dd/MM/yyyy')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-emerald-600 text-sm">
-                      ৳{(s.actual_sale_price || products.find(p => p.id === s.product_id)?.selling_price || 0).toLocaleString()}
-                    </p>
-                    <p className="text-[9px] text-orange-500 font-bold">Profit: ৳{calculateDynamicProfit(s).toLocaleString()}</p>
-                  </div>
+          {/* Printable Excel-Style Sheet Container */}
+          <div id="printable-monthly-sheet" className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
+            {/* Sheet Header (Visible in print and screen) */}
+            <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
+              <div>
+                <h1 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
+                  <span>MEHEDY TELECOM</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">Sales & Profit Sheet</span>
+                </h1>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Report Period: <span className="font-semibold text-gray-700">{reportStartDate}</span> to <span className="font-semibold text-gray-700">{reportEndDate}</span> | Total Records: <span className="font-semibold text-gray-700">{monthlyReportStats.totalSales}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsPrintPreviewOpen(true)}
+                  className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-xs cursor-pointer"
+                  title="Open full A4 Print and PDF Preview"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Print & PDF Preview</span>
+                </button>
+                <div className="text-left sm:text-right text-[11px] text-gray-400">
+                  Printed: {format(new Date(), 'dd/MM/yyyy hh:mm a')}
                 </div>
-              ))}
+              </div>
+            </div>
+
+            {/* Excel Sheet Table */}
+            <div className="overflow-x-auto">
+              <table className="excel-print-table w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-gray-800 font-bold uppercase tracking-wider border-b border-gray-300">
+                    <th className="py-2.5 px-2 border border-gray-300 text-center w-10">#</th>
+                    <th className="py-2.5 px-3 border border-gray-300 w-24">Date</th>
+                    <th className="py-2.5 px-3 border border-gray-300">Model</th>
+                    <th className="py-2.5 px-3 border border-gray-300 w-36 sm:w-44">Customer Mobile</th>
+                    <th className="py-2.5 px-3 border border-gray-300 text-right w-28">Retail Price</th>
+                    <th className="py-2.5 px-3 border border-gray-300 text-right w-28">MRP</th>
+                    <th className="py-2.5 px-3 border border-gray-300 text-right w-28">Profit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 font-sans">
+                  {monthlyReportStats.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-400 font-medium border border-gray-300">
+                        No sales records found for the selected date range ({reportStartDate} to {reportEndDate}).
+                      </td>
+                    </tr>
+                  ) : (
+                    monthlyReportStats.rows.map((row, idx) => (
+                      <tr 
+                        key={row.id} 
+                        className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}
+                      >
+                        <td className="py-2 px-2 border border-gray-300 text-center text-gray-500 font-mono text-[11px]">
+                          {row.sl}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 font-medium text-gray-700 whitespace-nowrap text-[11.5px]">
+                          {row.saleDate}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 font-semibold text-gray-900 text-[11.5px]">
+                          {row.model}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 text-gray-800 text-[11.5px]">
+                          <span className="font-mono font-medium">{row.customerMobile}</span>
+                          {row.customerName && (
+                            <span className="block text-[10px] text-gray-400 truncate max-w-[130px]">
+                              {row.customerName}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 text-right font-medium text-gray-800 tabular-nums text-[11.5px]">
+                          ৳{row.retailPrice.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 text-right font-bold text-gray-900 tabular-nums text-[11.5px]">
+                          ৳{row.mrp.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-3 border border-gray-300 text-right font-bold text-emerald-700 tabular-nums text-[11.5px]">
+                          +৳{row.profit.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="excel-print-total bg-slate-200/90 text-gray-900 font-black border-t-2 border-b-2 border-gray-400 text-xs">
+                    <td colSpan={4} className="py-2.5 px-3 border border-gray-300 text-left uppercase tracking-wider">
+                      TOTAL / সর্বমোট ({monthlyReportStats.totalSales} Pcs)
+                    </td>
+                    <td className="py-2.5 px-3 border border-gray-300 text-right tabular-nums text-[12px]">
+                      ৳{monthlyReportStats.totalRetailPrice.toLocaleString()}
+                    </td>
+                    <td className="py-2.5 px-3 border border-gray-300 text-right tabular-nums text-[12px] text-blue-900">
+                      ৳{monthlyReportStats.totalMrp.toLocaleString()}
+                    </td>
+                    <td className="py-2.5 px-3 border border-gray-300 text-right tabular-nums text-[12px] text-emerald-800">
+                      ৳{monthlyReportStats.totalProfit.toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Print Footer note */}
+            <div className="p-3 border-t border-gray-200 flex items-center justify-between text-[10px] text-gray-400 bg-slate-50/40">
+              <span>Mehedy Telecom Point of Sale System</span>
+              <span>Page 1 of 1</span>
             </div>
           </div>
         </div>
       </Modal>
+
+      {/* Print & PDF Preview Modal */}
+      <Modal 
+        isOpen={isPrintPreviewOpen} 
+        onClose={() => setIsPrintPreviewOpen(false)} 
+        title="Print Preview (প্রিন্ট ও পিডিএফ প্রিভিউ)"
+        maxWidthClass="max-w-5xl"
+        headerRight={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isGeneratingPdf}
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors shadow-xs cursor-pointer"
+              title="Download direct PDF File"
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>{isGeneratingPdf ? 'Generating PDF...' : 'Save as PDF'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-xs cursor-pointer"
+              title="Print Table on A4 Sheet"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Now</span>
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Notification banner */}
+          <div className="no-print bg-blue-50/90 border border-blue-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-blue-900">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-blue-200/70 rounded-md shrink-0"><FileText className="w-4 h-4 text-blue-700" /></span>
+              <span>
+                <strong>A4 Print Preview:</strong> নিচে আপনার মাসিক সেলস রিপোর্টের A4 পেজ প্রিভিউ রয়েছে। আপনি <strong>'Save as PDF'</strong> বাটনে ক্লিক করে সরাসরি পিডিএফ ডাউনলোড করতে পারেন অথবা <strong>'Print Now'</strong> দিয়ে প্রিন্ট করতে পারেন।
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                disabled={isGeneratingPdf}
+                onClick={handleDownloadPdf}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors shadow-xs"
+              >
+                {isGeneratingPdf ? 'Saving...' : 'Save as PDF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors shadow-xs"
+              >
+                Print Now
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop canvas showing A4 paper */}
+          <div className="bg-slate-300/80 p-2 sm:p-6 rounded-2xl overflow-y-auto max-h-[72vh] flex justify-center shadow-inner">
+            {/* The A4 Printable Paper */}
+            <div 
+              id="printable-a4-sheet" 
+              className="bg-white text-gray-950 p-6 sm:p-8 rounded-sm shadow-xl border border-gray-300 w-full max-w-[210mm] min-h-[297mm] flex flex-col justify-between"
+              style={{ boxSizing: 'border-box' }}
+            >
+              <div>
+                {/* Letterhead / Header */}
+                <div className="border-b-2 border-gray-900 pb-3 mb-4 text-center">
+                  <h1 className="text-2xl font-black tracking-wider text-gray-900 uppercase">MEHEDY TELECOM</h1>
+                  <p className="text-xs text-gray-600 font-medium">All Types of New & Used Smartphones, Sales, Exchange & Official Accessories</p>
+                  <div className="mt-2 inline-block px-4 py-1 bg-gray-900 text-white text-xs font-bold uppercase tracking-widest rounded-sm">
+                    Monthly Sales & Profit Sheet (মাসিক সেলস রিপোর্ট)
+                  </div>
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between text-[11px] text-gray-600 border-t border-gray-200 pt-2 font-medium">
+                    <div>
+                      Period: <span className="font-bold text-gray-900">{reportStartDate}</span> to <span className="font-bold text-gray-900">{reportEndDate}</span>
+                    </div>
+                    <div>
+                      Total Records: <span className="font-bold text-gray-900">{monthlyReportStats.totalSales} Pcs</span>
+                    </div>
+                    <div>
+                      Generated: <span className="font-bold text-gray-900">{format(new Date(), 'dd/MM/yyyy hh:mm a')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table */}
+                <table className="excel-print-table w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-900 font-bold uppercase tracking-wider">
+                      <th className="py-2 px-2 border border-gray-400 text-center w-8">#</th>
+                      <th className="py-2 px-2.5 border border-gray-400 w-22">Date</th>
+                      <th className="py-2 px-2.5 border border-gray-400">Model</th>
+                      <th className="py-2 px-2.5 border border-gray-400 w-36">Customer Mobile</th>
+                      <th className="py-2 px-2.5 border border-gray-400 text-right w-24">Retail Price</th>
+                      <th className="py-2 px-2.5 border border-gray-400 text-right w-24">MRP</th>
+                      <th className="py-2 px-2.5 border border-gray-400 text-right w-24">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyReportStats.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-10 text-center text-gray-500 font-medium border border-gray-400">
+                          No sales records found for this period ({reportStartDate} to {reportEndDate}).
+                        </td>
+                      </tr>
+                    ) : (
+                      monthlyReportStats.rows.map((row, idx) => (
+                        <tr 
+                          key={row.id} 
+                          className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                        >
+                          <td className="py-1.5 px-2 border border-gray-300 text-center text-gray-600 font-mono text-[11px]">
+                            {row.sl}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 font-medium text-gray-800 whitespace-nowrap text-[11px]">
+                            {row.saleDate}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 font-semibold text-gray-900 text-[11px]">
+                            {row.model}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 text-gray-800 text-[11px]">
+                            <span className="font-mono font-medium">{row.customerMobile}</span>
+                            {row.customerName && (
+                              <span className="block text-[9.5px] text-gray-500 truncate max-w-[130px]">
+                                {row.customerName}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 text-right font-medium text-gray-800 tabular-nums text-[11px]">
+                            ৳{row.retailPrice.toLocaleString()}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 text-right font-bold text-gray-950 tabular-nums text-[11px]">
+                            ৳{row.mrp.toLocaleString()}
+                          </td>
+                          <td className="py-1.5 px-2.5 border border-gray-300 text-right font-bold text-emerald-800 tabular-nums text-[11px]">
+                            +৳{row.profit.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="excel-print-total bg-gray-200 text-gray-950 font-black text-xs border-t-2 border-b-2 border-gray-900">
+                      <td colSpan={4} className="py-2.5 px-2.5 border border-gray-400 text-left uppercase tracking-wider">
+                        TOTAL / সর্বমোট ({monthlyReportStats.totalSales} Pcs)
+                      </td>
+                      <td className="py-2.5 px-2.5 border border-gray-400 text-right tabular-nums text-[11.5px]">
+                        ৳{monthlyReportStats.totalRetailPrice.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2.5 border border-gray-400 text-right tabular-nums text-[11.5px] text-blue-950">
+                        ৳{monthlyReportStats.totalMrp.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2.5 border border-gray-400 text-right tabular-nums text-[11.5px] text-emerald-900">
+                        ৳{monthlyReportStats.totalProfit.toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                {/* Summary Badges Box */}
+                <div className="mt-4 grid grid-cols-4 gap-2 border border-gray-300 bg-gray-50 p-2.5 rounded-sm text-center">
+                  <div>
+                    <span className="block text-[10px] text-gray-500 uppercase font-bold">Total Sold</span>
+                    <span className="font-black text-sm text-gray-900">{monthlyReportStats.totalSales} Pcs</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-500 uppercase font-bold">Total Retail (Cost)</span>
+                    <span className="font-black text-sm text-gray-900">৳{monthlyReportStats.totalRetailPrice.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-500 uppercase font-bold">Total Sales (MRP)</span>
+                    <span className="font-black text-sm text-blue-900">৳{monthlyReportStats.totalMrp.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-500 uppercase font-bold">Total Profit</span>
+                    <span className="font-black text-sm text-emerald-800">৳{monthlyReportStats.totalProfit.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Signatures & Footer */}
+              <div className="mt-8 pt-4 border-t border-gray-300 flex items-end justify-between text-xs text-gray-600">
+                <div>
+                  <p className="font-bold text-gray-900">Mehedy Telecom POS</p>
+                  <p className="text-[10px] text-gray-500">Computerized Official Report</p>
+                </div>
+                <div className="text-right">
+                  <div className="w-48 border-b border-gray-400 mb-1"></div>
+                  <p className="text-[11px] font-bold text-gray-900">Authorized Signature & Seal</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Brand-Wise Quantity & Stock List Modal */}
+      <BrandStockModal
+        isOpen={isBrandStockOpen}
+        onClose={() => setIsBrandStockOpen(false)}
+        products={products}
+        totalQuantity={stats.totalQuantity}
+        onSellProduct={(product, isCash) => {
+          setIsBrandStockOpen(false);
+          if (isCash) {
+            setCashSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              actual_sale_price: String(product.selling_price || ''),
+              color: product.color || ''
+            }));
+            setSaleTab('cash');
+            setIsSaleProductOpen(true);
+          } else {
+            setNewSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              color: product.color || ''
+            }));
+            setSaleTab('emi');
+            setIsSaleProductOpen(true);
+          }
+        }}
+      />
+
+      {/* Used Mobile List Modal */}
+      <UsedMobileModal
+        isOpen={isUsedMobileModalOpen}
+        onClose={() => setIsUsedMobileModalOpen(false)}
+        products={products}
+        onSellProduct={(product, isCash) => {
+          setIsUsedMobileModalOpen(false);
+          if (isCash) {
+            setCashSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              actual_sale_price: String(product.selling_price || ''),
+              color: product.color || ''
+            }));
+            setSaleTab('cash');
+            setIsSaleProductOpen(true);
+          } else {
+            setNewSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              color: product.color || ''
+            }));
+            setSaleTab('emi');
+            setIsSaleProductOpen(true);
+          }
+        }}
+        onEditProduct={(product) => {
+          setIsUsedMobileModalOpen(false);
+          setNewProduct({
+            id: product.id,
+            name: product.name,
+            purchase_price: String(product.purchase_price),
+            selling_price: String(product.selling_price),
+            quantity: String(product.quantity),
+            ram: product.ram || '',
+            rom: product.rom || '',
+            color: product.color || '',
+            condition: product.condition || 'used',
+            condition_note: product.condition_note || '',
+            imeis: product.imeis || [],
+            imei_colors: product.imei_colors || {},
+            image: null,
+            image_file_id: product.image_file_id || ''
+          });
+          setIsAddProductOpen(true);
+        }}
+      />
+
+      {/* Product Summary Modal */}
+      <ProductSummaryModal
+        isOpen={isProductSummaryOpen}
+        onClose={() => setIsProductSummaryOpen(false)}
+        products={products}
+        onSellProduct={(product, isCash) => {
+          setIsProductSummaryOpen(false);
+          if (isCash) {
+            setCashSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              actual_sale_price: String(product.selling_price || ''),
+              color: product.color || ''
+            }));
+            setSaleTab('cash');
+            setIsSaleProductOpen(true);
+          } else {
+            setNewSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              color: product.color || ''
+            }));
+            setSaleTab('emi');
+            setIsSaleProductOpen(true);
+          }
+        }}
+        onEditProduct={(product) => {
+          setIsProductSummaryOpen(false);
+          setNewProduct({
+            id: product.id,
+            name: product.name,
+            purchase_price: String(product.purchase_price),
+            selling_price: String(product.selling_price),
+            quantity: String(product.quantity),
+            ram: product.ram || '',
+            rom: product.rom || '',
+            color: product.color || '',
+            condition: product.condition || 'new',
+            condition_note: product.condition_note || '',
+            imeis: product.imeis || [],
+            imei_colors: product.imei_colors || {},
+            image: null,
+            image_file_id: product.image_file_id || ''
+          });
+          setIsAddProductOpen(true);
+        }}
+      />
 
       {/* Mobile Bazar Modal */}
       <Modal 
@@ -2347,7 +3684,7 @@ export default function App() {
                 <option value="">Select a product...</option>
                 {sortedProducts.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} — ৳{p.selling_price.toLocaleString()}
+                    {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} — ৳{p.selling_price.toLocaleString()}
                   </option>
                 ))}
               </select>
@@ -2953,6 +4290,187 @@ export default function App() {
                 This banner will be displayed in the header branding area.
               </p>
             </div>
+
+            {/* Inventory Reset Section */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-red-500" />
+                Stock Management & Reset (স্টক রিসেট)
+              </h3>
+              <div className="bg-red-50/70 border border-red-200 rounded-2xl p-4 space-y-3">
+                <div>
+                  <h4 className="font-bold text-red-900 text-sm">Clear All Current Stock (স্টক সম্পূর্ণ খালি করুন)</h4>
+                  <p className="text-xs text-red-700 mt-1">
+                    বর্তমান স্টকের সব পণ্য মুছে দিয়ে নতুনভাবে স্টক শুরু করুন। <strong>আপনার পূর্বের সমস্ত বিক্রয় ইতিহাস (Sales History), রিপোর্ট এবং কাস্টমার ডাটা ১০০% অক্ষত ও সুরক্ষিত থাকবে।</strong>
+                  </p>
+                </div>
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      setIsClearStockModalOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md shadow-red-100 transition-all text-xs sm:text-sm"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Clear All Stock ({products.length} Models / {stats.totalQuantity} Pcs)
+                  </button>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">Only the shop owner can reset inventory.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Clear All Stock Modal */}
+      <Modal
+        isOpen={isClearStockModalOpen}
+        onClose={() => setIsClearStockModalOpen(false)}
+        title="Clear All Inventory (স্টক খালি করুন)"
+      >
+        <div className="space-y-5">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-black text-red-900 text-sm sm:text-base">
+                আপনি কি বর্তমান স্টক সম্পূর্ণ খালি করতে চান?
+              </h4>
+              <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                এটি নিশ্চিত করলে আপনার বর্তমান স্টকের মোট <strong>{products.length} টি মডেল</strong> এবং <strong>{stats.totalQuantity} টি পণ্য</strong> ডাটাবেস থেকে মুছে ফেলা হবে।
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
+            <h5 className="font-bold text-emerald-900 text-xs sm:text-sm flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              আপনার ডাটা সুরক্ষার নিশ্চয়তা:
+            </h5>
+            <ul className="text-xs text-emerald-800 space-y-1.5 list-disc list-inside font-medium">
+              <li><strong>পূর্বের সকল বিক্রয় ইতিহাস (Sales History) সম্পূর্ণ সুরক্ষিত থাকবে</strong></li>
+              <li>আজকের ও চলতি মাসের সকল লাভ-ক্ষতি ও বিক্রয় রিপোর্ট বহাল থাকবে</li>
+              <li>কাস্টমার তথ্য, ফোন নম্বর, NID ও মেমোর ছবি সুরক্ষিত থাকবে</li>
+              <li>মোবাইল বাজার ও কিস্তি রেকর্ড অপরিবর্তিত থাকবে</li>
+              <li>স্টক খালি হওয়ার পর আপনি নতুন পণ্য ফ্রেশভাবে যুক্ত করতে পারবেন</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsClearStockModalOpen(false)}
+              disabled={isSubmitting}
+              className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors text-xs sm:text-sm order-2 sm:order-1"
+            >
+              Cancel (বাতিল করুন)
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAllStock}
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all text-xs sm:text-sm order-1 sm:order-2 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Clearing Stock...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>হ্যাঁ, সম্পূর্ণ স্টক খালি করুন</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* IMEI Not Available in Stock Modal Popup */}
+      <Modal
+        isOpen={notAvailableImei.isOpen}
+        onClose={() => setNotAvailableImei(prev => ({ ...prev, isOpen: false }))}
+        title="IMEI Not Available (স্টকে পাওয়া যায়নি)"
+      >
+        <div className="space-y-4 sm:space-y-5 text-center">
+          <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 bg-red-50 rounded-full flex items-center justify-center border-4 border-red-100 shadow-inner">
+            <AlertCircle className="w-8 h-8 sm:w-9 sm:h-9 text-red-600 animate-pulse" />
+          </div>
+
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100/70 border border-red-200 text-red-800 text-xs font-black uppercase tracking-wider mb-2">
+              <span>Not Available In Stock</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-gray-900 leading-snug">
+              এই IMEI নম্বরটি বর্তমান স্টকে যুক্ত নেই!
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-sm mx-auto">
+              {notAvailableImei.source === 'search' 
+                ? 'অনুসন্ধানকৃত IMEI নম্বরটি আপনার কোনো সক্রিয় পণ্যের তালিকায় পাওয়া যায়নি।' 
+                : 'বিক্রয় করার আগে পণ্যটি এবং এর IMEI নম্বর স্টকে (Add Product) যোগ করুন।'}
+            </p>
+          </div>
+
+          {notAvailableImei.imei && (
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 text-left space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Scanned / Entered IMEI</span>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm sm:text-base font-bold text-gray-800 tracking-wider select-all break-all">
+                  {notAvailableImei.imei}
+                </span>
+                <span className="text-[10px] bg-red-50 text-red-700 font-bold px-2 py-0.5 rounded border border-red-100 shrink-0 ml-2">
+                  0 Available
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3 text-left">
+            <p className="text-xs text-amber-900 font-medium leading-relaxed flex items-start gap-2">
+              <span className="text-amber-600 font-bold shrink-0">💡 টিপস:</span>
+              <span>যদি এটি নতুন কোনো মোবাইল হয়, তবে প্রথমে <strong>Add Product</strong> বাটনে গিয়ে সঠিক IMEI ও মূল্য দিয়ে স্টকে যুক্ত করে নিন।</span>
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setNotAvailableImei(prev => ({ ...prev, isOpen: false }))}
+              className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs sm:text-sm transition-colors order-2 sm:order-1"
+            >
+              Close (বন্ধ করুন)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const imeiToPreFill = notAvailableImei.imei;
+                setNotAvailableImei(prev => ({ ...prev, isOpen: false }));
+                setNewProduct({
+                  id: '',
+                  name: '',
+                  purchase_price: '',
+                  selling_price: '',
+                  quantity: '1',
+                  ram: '',
+                  rom: '',
+                  color: '',
+                  condition: 'new',
+                  condition_note: '',
+                  imeis: imeiToPreFill ? [imeiToPreFill] : [],
+                  imei_colors: {},
+                  image: null,
+                  image_file_id: ''
+                });
+                setIsAddProductOpen(true);
+              }}
+              className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-1.5 order-1 sm:order-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add to Stock (স্টকে যোগ করুন)</span>
+            </button>
           </div>
         </div>
       </Modal>
@@ -2999,19 +4517,35 @@ export default function App() {
             } else if (activeScanner === 'cashSale') {
                 const match = products.find(p => p.imeis?.includes(imei));
                 if (match) {
+                  setCashImeiInput(imei);
                   setCashSale(prev => ({
                     ...prev,
                     product_id: match.id,
                     imei: imei,
-                    color: match.imei_colors?.[imei] || match.color || ''
+                    color: match.imei_colors?.[imei] || match.color || '',
+                    actual_sale_price: String(match.selling_price)
                   }));
                   setActiveScanner(null);
                 } else {
-                  alert("Product not found with this IMEI in stock.");
+                  setActiveScanner(null);
+                  setCashImeiInput(imei);
+                  setCashSale(prev => ({
+                    product_id: '',
+                    imei: '',
+                    color: '',
+                    actual_sale_price: '',
+                    sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                  }));
+                  setNotAvailableImei({
+                    isOpen: true,
+                    imei: imei,
+                    source: 'cashSale'
+                  });
                 }
             } else if (activeScanner === 'sale') {
                 const match = products.find(p => p.imeis?.includes(imei));
                 if (match) {
+                  setSaleImeiInput(imei);
                   setNewSale(prev => ({
                     ...prev,
                     product_id: match.id,
@@ -3020,11 +4554,37 @@ export default function App() {
                   }));
                   setActiveScanner(null);
                 } else {
-                  alert("Product not found with this IMEI in stock.");
+                  setActiveScanner(null);
+                  setSaleImeiInput(imei);
+                  setNewSale(prev => ({
+                    customer_name: '',
+                    phone_number: '',
+                    nid_number: '',
+                    address: '',
+                    guarantor_number: '',
+                    product_id: '',
+                    imei: '',
+                    color: '',
+                    images: [],
+                    sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                  }));
+                  setNotAvailableImei({
+                    isOpen: true,
+                    imei: imei,
+                    source: 'sale'
+                  });
                 }
             } else if (activeScanner === 'search') {
+                const isFound = products.some(p => p.imeis?.includes(imei) || p.name.toLowerCase().includes(imei.toLowerCase()));
                 setProductSearch(imei);
                 setActiveScanner(null);
+                if (!isFound) {
+                  setNotAvailableImei({
+                    isOpen: true,
+                    imei: imei,
+                    source: 'search'
+                  });
+                }
             }
           }}
         />

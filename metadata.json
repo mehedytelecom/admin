@@ -3,5 +3,8 @@
   "description": "A complete shop management system for Mehedy Telecom with inventory tracking, sales reporting, and Telegram-based image storage.",
   "requestFramePermissions": [
     "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

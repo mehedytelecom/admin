@@ -61,6 +61,14 @@
         "banner_file_id": { "type": "string" },
         "logo_file_id": { "type": "string" }
       }
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Firestore connectivity test document",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -79,6 +87,10 @@
     "settings": {
       "schema": "ShopSettings",
       "description": "Shop settings like branding banner"
+    },
+    "test": {
+      "schema": "TestConnection",
+      "description": "Collection for connectivity tests"
     }
   }
 }

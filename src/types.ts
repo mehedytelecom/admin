@@ -1,3 +1,9 @@
+export interface ImeiUnit {
+  imei1: string;
+  imei2?: string;
+  color?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -8,7 +14,10 @@ export interface Product {
   ram?: string;
   rom?: string;
   color?: string;
+  condition?: 'new' | 'used';
+  condition_note?: string;
   imeis?: string[];
+  imei_units?: ImeiUnit[];
   imei_colors?: Record<string, string>;
   image_file_id?: string;
   created_at: string;
@@ -25,6 +34,8 @@ export interface Sale {
   product_name: string;
   color?: string;
   imei?: string;
+  imei2?: string;
+  imeis?: string[];
   ram?: string;
   rom?: string;
   image_file_ids: string[];
@@ -41,6 +52,7 @@ export interface MobileBazarRecord {
   customer_name: string;
   product_name: string;
   imei?: string;
+  imei2?: string;
   ram?: string;
   rom?: string;
   down_payment: number;

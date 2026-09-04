@@ -89,5 +89,9 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read, write: if isSuperAdmin();
     }
+
+    match /test/{testId} {
+      allow read: if true;
+    }
   }
 }
