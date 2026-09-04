@@ -74,6 +74,7 @@ import { PhotoCapture } from './components/PhotoCapture';
 import { BrandStockModal } from './components/BrandStockModal';
 import { UsedMobileModal } from './components/UsedMobileModal';
 import { ProductSummaryModal } from './components/ProductSummaryModal';
+import { BarPhoneModal } from './components/BarPhoneModal';
 
 // --- Components ---
 
@@ -390,6 +391,7 @@ export default function App() {
   const [isBrandStockOpen, setIsBrandStockOpen] = useState(false);
   const [isUsedMobileModalOpen, setIsUsedMobileModalOpen] = useState(false);
   const [isProductSummaryOpen, setIsProductSummaryOpen] = useState(false);
+  const [isBarPhoneModalOpen, setIsBarPhoneModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isClearStockModalOpen, setIsClearStockModalOpen] = useState(false);
   const [notAvailableImei, setNotAvailableImei] = useState<{ isOpen: boolean; imei: string; source: 'sale' | 'cashSale' | 'search' }>({
@@ -428,6 +430,10 @@ export default function App() {
     color: '',
     condition: 'new' as 'new' | 'used',
     condition_note: '',
+    is_bar_phone: false,
+    imei_units: [] as { imei1: string; imei2: string }[],
+    tempImei1: '',
+    tempImei2: '',
     imeis: [] as string[],
     imei_colors: {} as Record<string, string>,
     image: null as File | null,
@@ -649,6 +655,10 @@ export default function App() {
     const usedQuantity = usedProducts.reduce((acc, p) => acc + p.quantity, 0);
     const usedProductsCount = usedProducts.length;
 
+    const barProducts = products.filter(p => p.is_bar_phone);
+    const barQuantity = barProducts.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
+    const barProductsCount = barProducts.length;
+
     return {
       todayCount: todaySales.length,
       todayProfit,
@@ -656,10 +666,12 @@ export default function App() {
       monthlyProfit,
       monthlyTotalSale: currentMonthTotal,
       totalProducts: products.length,
-      totalQuantity: products.reduce((acc, p) => acc + p.quantity, 0),
-      totalStockValue: products.reduce((acc, p) => acc + (p.purchase_price * p.quantity), 0),
+      totalQuantity: products.filter(p => p.condition !== 'used').reduce((acc, p) => acc + p.quantity, 0),
+      totalStockValue: products.reduce((acc, p) => acc + Math.round((Number(p.purchase_price) || 0) * (Number(p.quantity) || 0)), 0),
       usedQuantity,
       usedProductsCount,
+      barQuantity,
+      barProductsCount,
       mobileBazarTotal
     };
   }, [sales, products, mobileBazarRecords, currentMonthTotal, calculateDynamicProfit]);
@@ -721,6 +733,21 @@ export default function App() {
         });
       }
 
+      const allImeis: string[] = [];
+      if (newProduct.imei_units && newProduct.imei_units.length > 0) {
+        newProduct.imei_units.forEach(u => {
+          if (u.imei1 && !allImeis.includes(u.imei1)) allImeis.push(u.imei1);
+          if (u.imei2 && !allImeis.includes(u.imei2)) allImeis.push(u.imei2);
+        });
+      }
+      if (newProduct.imeis && newProduct.imeis.length > 0) {
+        newProduct.imeis.forEach(i => {
+          if (i && !allImeis.includes(i)) allImeis.push(i);
+        });
+      }
+
+      const finalQuantity = newProduct.imei_units.length > 0 ? newProduct.imei_units.length : Number(newProduct.quantity || 1);
+
       if (newProduct.id) {
         // Update existing product
         const updateData: any = {
@@ -728,21 +755,20 @@ export default function App() {
           purchase_price: pPrice,
           selling_price: sPrice,
           profit_margin: profit,
-          quantity: increment(Number(newProduct.quantity)),
+          quantity: increment(Number(newProduct.quantity || finalQuantity)),
           ram: newProduct.ram,
           rom: newProduct.rom,
           color: newProduct.color,
           condition: newProduct.condition || 'new',
           condition_note: newProduct.condition_note || '',
+          is_bar_phone: Boolean(newProduct.is_bar_phone),
           image_file_id: imageFileId
         };
-        if (newProduct.imeis && newProduct.imeis.length > 0) {
-          updateData.imeis = arrayUnion(...newProduct.imeis);
+        if (allImeis.length > 0) {
+          updateData.imeis = arrayUnion(...allImeis);
         }
-        if (newProduct.imei_colors) {
-          Object.entries(newProduct.imei_colors).forEach(([imei, col]) => {
-            updateData[`imei_colors.${imei}`] = col;
-          });
+        if (newProduct.imei_units && newProduct.imei_units.length > 0) {
+          updateData.imei_units = arrayUnion(...newProduct.imei_units);
         }
         await updateDoc(doc(db, 'products', newProduct.id), updateData);
       } else {
@@ -752,20 +778,22 @@ export default function App() {
           purchase_price: pPrice,
           selling_price: sPrice,
           profit_margin: profit,
-          quantity: Number(newProduct.quantity),
+          quantity: finalQuantity,
           ram: newProduct.ram,
           rom: newProduct.rom,
           color: newProduct.color,
           condition: newProduct.condition || 'new',
           condition_note: newProduct.condition_note || '',
-          imeis: newProduct.imeis || [],
+          is_bar_phone: Boolean(newProduct.is_bar_phone),
+          imeis: allImeis,
+          imei_units: newProduct.imei_units || [],
           imei_colors: newProduct.imei_colors || {},
           image_file_id: imageFileId,
           created_at: new Date().toISOString()
         });
       }
 
-      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, imei_units: [], tempImei1: '', tempImei2: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
       setIsAddProductOpen(false);
     } catch (error) {
       console.error('Failed to add/update product:', error);
@@ -1527,11 +1555,14 @@ export default function App() {
                 colorClass="bg-purple-500" 
               />
               <SummaryItem 
-                symbol="৳" 
-                label="Monthly Total Sale" 
-                value={stats.monthlyTotalSale} 
-                prefix="৳"
-                colorClass="bg-emerald-600" 
+                icon={Smartphone} 
+                label="Bar Phone" 
+                value={stats.barQuantity} 
+                suffix=" Pcs"
+                colorClass="bg-blue-600" 
+                subtitle={`${stats.barProductsCount} Models`}
+                subtitleClass="text-blue-800 bg-blue-50 border-blue-200"
+                onClick={() => setIsBarPhoneModalOpen(true)}
               />
               <SummaryItem 
                 symbol="৳" 
@@ -1891,6 +1922,28 @@ export default function App() {
             </div>
           </div>
 
+          {/* Bar Phone Checkbox */}
+          <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-blue-600 text-white">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-sm text-blue-900">Bar Phone (বাটন ফোন)</div>
+                <div className="text-[11px] text-blue-600">বাটন ফোন বা ফিচার ফোন হিসেবে তালিকাভুক্ত করুন</div>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox"
+                checked={Boolean(newProduct.is_bar_phone)}
+                onChange={e => setNewProduct({ ...newProduct, is_bar_phone: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
           {/* If Used, show Condition Notes Card */}
           {newProduct.condition === 'used' && (
             <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-2">
@@ -2079,83 +2132,117 @@ export default function App() {
               </span>
             </div>
           </div>
-          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-            <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center justify-between">
-              <span>Scan Barcode / IMEI</span>
-              <span className="text-xs text-blue-600 font-normal">Press Enter or use Camera</span>
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
+            <label className="block text-sm font-bold text-gray-700 flex items-center justify-between">
+              <span>IMEI Units (প্রতিটি কোয়ান্টিটির জন্য ২ টি করে IMEI)</span>
+              <span className="text-xs text-blue-600 font-bold">{newProduct.imei_units.length} Units Added</span>
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input 
                 type="text"
-                placeholder="Scan IMEI here..."
-                onKeyDown={(e) => {
+                placeholder="IMEI 1..."
+                value={newProduct.tempImei1}
+                onChange={e => setNewProduct({...newProduct, tempImei1: e.target.value})}
+                onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    const imei = e.currentTarget.value.trim();
-                    if (imei) {
-                      if (newProduct.imeis?.includes(imei)) {
-                        e.currentTarget.value = '';
-                        return;
+                    // auto fill from previous match if length >= 8
+                    const val = e.currentTarget.value.trim();
+                    if (val.length >= 8 && !newProduct.name) {
+                      const tac = val.substring(0, 8);
+                      const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
+                      if (match) {
+                        setNewProduct(prev => ({
+                          ...prev,
+                          name: match.name,
+                          ram: match.ram || '',
+                          rom: match.rom || '',
+                          color: match.color || '',
+                          purchase_price: String(match.purchase_price),
+                          selling_price: String(match.selling_price)
+                        }));
                       }
-                      if (imei.length >= 8 && !newProduct.name) {
-                        const tac = imei.substring(0, 8);
-                        const match = products.find(p => p.imeis?.some(i => i.startsWith(tac)));
-                        if (match) {
-                          setNewProduct(prev => ({
-                            ...prev,
-                            name: match.name,
-                            ram: match.ram || '',
-                            rom: match.rom || '',
-                            color: match.color || '',
-                            purchase_price: String(match.purchase_price),
-                            selling_price: String(match.selling_price)
-                          }));
-                        }
-                      }
-                      setNewProduct(prev => ({
-                        ...prev,
-                        imeis: [...(prev.imeis || []), imei],
-                        imei_colors: { ...(prev.imei_colors || {}), [imei]: prev.color || '' },
-                        quantity: prev.id ? prev.quantity : String((prev.imeis || []).length + 1)
-                      }));
-                      e.currentTarget.value = '';
                     }
                   }
                 }}
-                className="flex-1 w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                className="px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
               />
-              <button 
-                type="button"
-                onClick={() => setActiveScanner('product')}
-                className="px-4 py-3 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors flex items-center justify-center text-blue-600 shadow-sm"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
+              <div className="flex gap-2">
+                <input 
+                  type="text"
+                  placeholder="IMEI 2..."
+                  value={newProduct.tempImei2}
+                  onChange={e => setNewProduct({...newProduct, tempImei2: e.target.value})}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const i1 = newProduct.tempImei1.trim();
+                      const i2 = e.currentTarget.value.trim();
+                      if (!i1 || !i2) {
+                        alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
+                        return;
+                      }
+                      const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
+                      setNewProduct({
+                        ...newProduct,
+                        imei_units: units,
+                        tempImei1: '',
+                        tempImei2: '',
+                        quantity: String(units.length)
+                      });
+                    }
+                  }}
+                  className="flex-1 px-3 py-2.5 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-xs font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const i1 = newProduct.tempImei1.trim();
+                    const i2 = newProduct.tempImei2.trim();
+                    if (!i1 || !i2) {
+                      alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
+                      return;
+                    }
+                    const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
+                    setNewProduct({
+                      ...newProduct,
+                      imei_units: units,
+                      tempImei1: '',
+                      tempImei2: '',
+                      quantity: String(units.length)
+                    });
+                  }}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shrink-0 shadow-sm"
+                >
+                  + Add Unit
+                </button>
+              </div>
             </div>
-            {newProduct.imeis && newProduct.imeis.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {newProduct.imeis.map((imei, idx) => (
-                  <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded-lg text-xs font-mono flex items-center gap-1 shadow-sm">
-                    {newProduct.imei_colors?.[imei] && (
-                      <div 
-                        className={`w-2 h-2 rounded-full border border-gray-200 ${
-                          newProduct.imei_colors[imei] === 'Black' ? 'bg-black' :
-                          newProduct.imei_colors[imei] === 'Titanium Gray' ? 'bg-slate-500' :
-                          newProduct.imei_colors[imei] === 'Blue' ? 'bg-blue-500' :
-                          newProduct.imei_colors[imei] === 'Gold' ? 'bg-yellow-500' :
-                          newProduct.imei_colors[imei] === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
-                        }`}
-                        title={newProduct.imei_colors[imei]}
-                      />
-                    )}
-                    {imei}
-                    <button type="button" onClick={() => setNewProduct(prev => {
-                      const newImeis = prev.imeis?.filter((_, i) => i !== idx);
-                      const newColors = { ...prev.imei_colors };
-                      delete newColors[imei];
-                      return { ...prev, imeis: newImeis, imei_colors: newColors, quantity: prev.id ? prev.quantity : String(newImeis!.length) };
-                    })} className="text-red-500 hover:text-red-700 ml-1 font-bold">&times;</button>
-                  </span>
+
+            {newProduct.imei_units.length > 0 && (
+              <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
+                {newProduct.imei_units.map((unit, idx) => (
+                  <div key={idx} className="bg-white border border-blue-200 px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
+                    <div className="font-mono text-gray-800 flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-blue-700">Unit {idx + 1}:</span>
+                      <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">1: {unit.imei1}</span>
+                      <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">2: {unit.imei2}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const units = newProduct.imei_units.filter((_, i) => i !== idx);
+                        setNewProduct({
+                          ...newProduct,
+                          imei_units: units,
+                          quantity: String(units.length)
+                        });
+                      }} 
+                      className="text-red-500 hover:text-red-700 font-bold ml-2 p-1"
+                    >
+                      &times; Delete
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -3533,12 +3620,90 @@ export default function App() {
             color: product.color || '',
             condition: product.condition || 'new',
             condition_note: product.condition_note || '',
+            is_bar_phone: Boolean(product.is_bar_phone),
             imeis: product.imeis || [],
             imei_colors: product.imei_colors || {},
             image: null,
             image_file_id: product.image_file_id || ''
           });
           setIsAddProductOpen(true);
+        }}
+      />
+
+      {/* Bar Phone Modal */}
+      <BarPhoneModal
+        isOpen={isBarPhoneModalOpen}
+        onClose={() => setIsBarPhoneModalOpen(false)}
+        products={products}
+        onAddProduct={(isBarPhone) => {
+          setIsBarPhoneModalOpen(false);
+          setNewProduct({
+            id: '',
+            name: '',
+            purchase_price: '',
+            selling_price: '',
+            quantity: '',
+            ram: '',
+            rom: '',
+            color: '',
+            condition: 'new',
+            condition_note: '',
+            is_bar_phone: isBarPhone,
+            imei_units: [],
+            tempImei1: '',
+            tempImei2: '',
+            imeis: [],
+            imei_colors: {},
+            image: null,
+            image_file_id: ''
+          });
+          setIsAddProductOpen(true);
+        }}
+        onEditProduct={(product) => {
+          setIsBarPhoneModalOpen(false);
+          setNewProduct({
+            id: product.id,
+            name: product.name,
+            purchase_price: String(product.purchase_price),
+            selling_price: String(product.selling_price),
+            quantity: String(product.quantity),
+            ram: product.ram || '',
+            rom: product.rom || '',
+            color: product.color || '',
+            condition: product.condition || 'new',
+            condition_note: product.condition_note || '',
+            is_bar_phone: Boolean(product.is_bar_phone),
+            imei_units: product.imei_units || [],
+            tempImei1: '',
+            tempImei2: '',
+            imeis: product.imeis || [],
+            imei_colors: product.imei_colors || {},
+            image: null,
+            image_file_id: product.image_file_id || ''
+          });
+          setIsAddProductOpen(true);
+        }}
+        onDeleteProduct={handleDeleteProduct}
+        onSellProduct={(product, isCash) => {
+          setIsBarPhoneModalOpen(false);
+          if (isCash) {
+            setCashSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              actual_sale_price: String(product.selling_price || ''),
+              color: product.color || ''
+            }));
+            setSaleTab('cash');
+            setIsSaleProductOpen(true);
+          } else {
+            setNewSale(prev => ({
+              ...prev,
+              product_id: product.id,
+              color: product.color || ''
+            }));
+            setSaleTab('emi');
+            setIsSaleProductOpen(true);
+          }
         }}
       />
 

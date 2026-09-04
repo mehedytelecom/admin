@@ -42,24 +42,32 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
   // Overall calculations for all products
   const totals = useMemo(() => {
     let totalQty = 0;
+    let usedQty = 0;
     let totalRetailVal = 0;
     let totalMrpVal = 0;
     let totalProfitVal = 0;
     let inStockModels = 0;
 
     products.forEach(p => {
-      const qty = p.quantity || 0;
-      totalQty += qty;
+      const qty = Number(p.quantity) || 0;
+      if (p.condition === 'used') {
+        usedQty += qty;
+      } else {
+        totalQty += qty; // Brand New quantity strictly
+      }
       if (qty > 0) inStockModels += 1;
-      totalRetailVal += (p.purchase_price || 0) * qty;
-      totalMrpVal += (p.selling_price || 0) * qty;
-      totalProfitVal += ((p.selling_price || 0) - (p.purchase_price || 0)) * qty;
+      const pPrice = Number(p.purchase_price) || 0;
+      const sPrice = Number(p.selling_price) || 0;
+      totalRetailVal += Math.round(pPrice * qty);
+      totalMrpVal += Math.round(sPrice * qty);
+      totalProfitVal += Math.round((sPrice - pPrice) * qty);
     });
 
     return {
       totalModels: products.length,
       inStockModels,
       totalQuantity: totalQty,
+      usedQuantity: usedQty,
       totalRetail: totalRetailVal,
       totalMrp: totalMrpVal,
       totalProfit: totalProfitVal

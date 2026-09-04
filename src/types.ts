@@ -20,6 +20,7 @@ export interface Product {
   imei_units?: ImeiUnit[];
   imei_colors?: Record<string, string>;
   image_file_id?: string;
+  is_bar_phone?: boolean;
   created_at: string;
 }
 

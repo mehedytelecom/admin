@@ -96,7 +96,7 @@ export function groupProductsByBrand(products: Product[]): BrandStockSummary[] {
       entry.totalQuantity += qty; // Total quantity strictly represents Brand New stock
     }
 
-    entry.totalStockValue += (product.purchase_price || 0) * qty;
+    entry.totalStockValue += Math.round((Number(product.purchase_price) || 0) * qty);
     entry.products.push(product);
   });
 
