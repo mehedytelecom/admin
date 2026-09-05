@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, X, RefreshCw, Check } from 'lucide-react';
+import { Camera, X } from 'lucide-react';
 
 interface PhotoCaptureProps {
   onCapture: (file: File) => void;
@@ -11,65 +11,65 @@ export function PhotoCapture({ onCapture, onClose }: PhotoCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopCurrentStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
 
   useEffect(() => {
-    async function getDevices() {
+    let active = true;
+
+    async function initCamera() {
+      stopCurrentStream();
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true }); // Ask permission first
+        const constraints: MediaStreamConstraints = {
+          video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : { facingMode: 'environment' }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!active) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
         setError('');
+
+        // Enumerate devices to allow switching if multiple video inputs exist
         const allDevices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
-        setDevices(videoDevices);
-        if (videoDevices.length > 0) {
-          // Try to select an external camera if available, otherwise default to first
-          const external = videoDevices.find(d => d.label.toLowerCase().includes('external') || d.label.toLowerCase().includes('usb'));
-          setSelectedDeviceId(external ? external.deviceId : videoDevices[0].deviceId);
+        if (active) {
+          setDevices(videoDevices);
+          if (!selectedDeviceId && videoDevices.length > 0) {
+            const currentTrack = stream.getVideoTracks()[0];
+            const settings = currentTrack?.getSettings();
+            if (settings?.deviceId) {
+              setSelectedDeviceId(settings.deviceId);
+            }
+          }
         }
       } catch (err: any) {
-        console.error("Error enumerating devices:", err);
-        setError('Camera permission denied or camera not found. Please allow camera access and try again.');
-      }
-    }
-    getDevices();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDeviceId) return;
-    
-    async function startStream() {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: selectedDeviceId } }
-        });
-        setStream(newStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = newStream;
+        if (active) {
+          console.error("Error accessing camera:", err);
+          setError('Camera permission denied or camera not found. Please allow camera access and try again.');
         }
-      } catch (err) {
-        console.error("Error starting stream:", err);
       }
     }
-    startStream();
 
-    // Cleanup function
+    initCamera();
+
     return () => {
-        // stream cleanup is handled in the next useEffect or on component unmount
+      active = false;
+      stopCurrentStream();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDeviceId]);
-
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [stream]);
 
   const handleCapture = () => {
     if (videoRef.current && canvasRef.current) {
@@ -97,7 +97,7 @@ export function PhotoCapture({ onCapture, onClose }: PhotoCaptureProps) {
           <h3 className="text-lg font-bold flex items-center gap-2">
             <Camera className="w-5 h-5" /> Take Photo
           </h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
             <X className="w-5 h-5" />
           </button>
         </div>
