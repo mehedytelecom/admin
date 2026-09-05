@@ -746,7 +746,7 @@ export default function App() {
         });
       }
 
-      const finalQuantity = newProduct.imei_units.length > 0 ? newProduct.imei_units.length : Number(newProduct.quantity || 1);
+      const finalQuantity = (newProduct.imei_units && newProduct.imei_units.length > 0) ? newProduct.imei_units.length : Number(newProduct.quantity || 1);
 
       if (newProduct.id) {
         // Update existing product
@@ -1823,6 +1823,10 @@ export default function App() {
                               color: product.color || '',
                               condition: product.condition || 'new',
                               condition_note: product.condition_note || '',
+                              is_bar_phone: Boolean(product.is_bar_phone),
+                              imei_units: product.imei_units || [],
+                              tempImei1: '',
+                              tempImei2: '',
                               imeis: [],
                               imei_colors: {},
                               image: null,
@@ -2009,6 +2013,9 @@ export default function App() {
                       condition: p.condition || 'new',
                       condition_note: p.condition_note || '',
                       is_bar_phone: Boolean(p.is_bar_phone),
+                      imei_units: p.imei_units || [],
+                      tempImei1: '',
+                      tempImei2: '',
                       imeis: [],
                       imei_colors: {},
                       image: null,
@@ -2016,7 +2023,7 @@ export default function App() {
                     });
                   }
                 } else {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, imei_units: [], tempImei1: '', tempImei2: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                 }
               }}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -2155,13 +2162,13 @@ export default function App() {
             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
               <label className="block text-sm font-bold text-gray-700 flex items-center justify-between">
                 <span>IMEI Units (প্রতিটি কোয়ান্টিটির জন্য ২ টি করে IMEI)</span>
-                <span className="text-xs text-blue-600 font-bold">{newProduct.imei_units.length} Units Added</span>
+                <span className="text-xs text-blue-600 font-bold">{(newProduct.imei_units || []).length} Units Added</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input 
                   type="text"
                   placeholder="IMEI 1..."
-                  value={newProduct.tempImei1}
+                  value={newProduct.tempImei1 || ''}
                   onChange={e => setNewProduct({...newProduct, tempImei1: e.target.value})}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
@@ -2191,18 +2198,18 @@ export default function App() {
                   <input 
                     type="text"
                     placeholder="IMEI 2..."
-                    value={newProduct.tempImei2}
+                    value={newProduct.tempImei2 || ''}
                     onChange={e => setNewProduct({...newProduct, tempImei2: e.target.value})}
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const i1 = newProduct.tempImei1.trim();
+                        const i1 = (newProduct.tempImei1 || '').trim();
                         const i2 = e.currentTarget.value.trim();
                         if (!i1 || !i2) {
                           alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
                           return;
                         }
-                        const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
+                        const units = [...(newProduct.imei_units || []), { imei1: i1, imei2: i2 }];
                         setNewProduct({
                           ...newProduct,
                           imei_units: units,
@@ -2217,13 +2224,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      const i1 = newProduct.tempImei1.trim();
-                      const i2 = newProduct.tempImei2.trim();
+                      const i1 = (newProduct.tempImei1 || '').trim();
+                      const i2 = (newProduct.tempImei2 || '').trim();
                       if (!i1 || !i2) {
                         alert('দয়া করে প্রতিটি ইউনিটের জন্য সঠিকভবে IMEI 1 এবং IMEI 2 উভয়ই দিন।');
                         return;
                       }
-                      const units = [...newProduct.imei_units, { imei1: i1, imei2: i2 }];
+                      const units = [...(newProduct.imei_units || []), { imei1: i1, imei2: i2 }];
                       setNewProduct({
                         ...newProduct,
                         imei_units: units,
@@ -2239,9 +2246,9 @@ export default function App() {
                 </div>
               </div>
 
-              {newProduct.imei_units.length > 0 && (
+              {(newProduct.imei_units || []).length > 0 && (
                 <div className="space-y-1.5 mt-2 max-h-40 overflow-y-auto">
-                  {newProduct.imei_units.map((unit, idx) => (
+                  {(newProduct.imei_units || []).map((unit, idx) => (
                     <div key={idx} className="bg-white border border-blue-200 px-3 py-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
                       <div className="font-mono text-gray-800 flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-blue-700">Unit {idx + 1}:</span>
@@ -2251,7 +2258,7 @@ export default function App() {
                       <button 
                         type="button" 
                         onClick={() => {
-                          const units = newProduct.imei_units.filter((_, i) => i !== idx);
+                          const units = (newProduct.imei_units || []).filter((_, i) => i !== idx);
                           setNewProduct({
                             ...newProduct,
                             imei_units: units,
@@ -3594,6 +3601,10 @@ export default function App() {
             color: product.color || '',
             condition: product.condition || 'used',
             condition_note: product.condition_note || '',
+            is_bar_phone: Boolean(product.is_bar_phone),
+            imei_units: product.imei_units || [],
+            tempImei1: '',
+            tempImei2: '',
             imeis: product.imeis || [],
             imei_colors: product.imei_colors || {},
             image: null,
@@ -3643,6 +3654,9 @@ export default function App() {
             condition: product.condition || 'new',
             condition_note: product.condition_note || '',
             is_bar_phone: Boolean(product.is_bar_phone),
+            imei_units: product.imei_units || [],
+            tempImei1: '',
+            tempImei2: '',
             imeis: product.imeis || [],
             imei_colors: product.imei_colors || {},
             image: null,
