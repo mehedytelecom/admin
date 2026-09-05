@@ -74,6 +74,7 @@ export const UsedMobileModal: React.FC<UsedMobileModalProps> = ({
         (p.rom && p.rom.toLowerCase().includes(q)) ||
         (p.color && p.color.toLowerCase().includes(q)) ||
         (p.condition_note && p.condition_note.toLowerCase().includes(q)) ||
+        (p.imei_units && p.imei_units.some(u => (u.color && u.color.toLowerCase().includes(q)) || (u.imei1 && u.imei1.toLowerCase().includes(q)) || (u.imei2 && u.imei2.toLowerCase().includes(q)))) ||
         (p.imeis && p.imeis.some(i => i.toLowerCase().includes(q)))
       );
     }
