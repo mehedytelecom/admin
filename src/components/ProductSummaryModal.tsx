@@ -34,15 +34,17 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
   onEditProduct
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [conditionFilter, setConditionFilter] = useState<'all' | 'new' | 'used'>('all');
+  const [conditionFilter, setConditionFilter] = useState<'all' | 'new' | 'used' | 'bar'>('all');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // Overall calculations for all products
+  // Overall calculations for all products (Brand New, Used, Bar phone all combined)
   const totals = useMemo(() => {
-    let totalQty = 0;
+    let totalAllQty = 0;
+    let brandNewQty = 0;
     let usedQty = 0;
+    let barQty = 0;
     let totalRetailVal = 0;
     let totalMrpVal = 0;
     let totalProfitVal = 0;
@@ -50,11 +52,16 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
 
     (products || []).forEach(p => {
       const qty = Number(p.quantity) || 0;
+      totalAllQty += qty;
+
       if (p.condition === 'used') {
         usedQty += qty;
+      } else if (p.is_bar_phone) {
+        barQty += qty;
       } else {
-        totalQty += qty; // Brand New quantity strictly
+        brandNewQty += qty;
       }
+
       if (qty > 0) inStockModels += 1;
       const pPrice = Number(p.purchase_price) || 0;
       const sPrice = Number(p.selling_price) || 0;
@@ -66,8 +73,10 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
     return {
       totalModels: (products || []).length,
       inStockModels,
-      totalQuantity: totalQty,
+      totalQuantity: totalAllQty, // Brand New + Used + Bar combined
+      brandNewQuantity: brandNewQty,
       usedQuantity: usedQty,
+      barQuantity: barQty,
       totalRetail: totalRetailVal,
       totalMrp: totalMrpVal,
       totalProfit: totalProfitVal
@@ -82,8 +91,12 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
       list = list.filter(p => (p.quantity || 0) > 0);
     }
 
-    if (conditionFilter !== 'all') {
-      list = list.filter(p => (p.condition || 'new') === conditionFilter);
+    if (conditionFilter === 'used') {
+      list = list.filter(p => p.condition === 'used');
+    } else if (conditionFilter === 'bar') {
+      list = list.filter(p => p.is_bar_phone);
+    } else if (conditionFilter === 'new') {
+      list = list.filter(p => p.condition !== 'used' && !p.is_bar_phone);
     }
 
     if (searchQuery.trim()) {
@@ -157,7 +170,7 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
                     Product Summary (প্রোডাক্ট সামারি)
                   </h2>
                   <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                    {totals.totalModels} Models • {totals.totalQuantity} Pcs
+                    {totals.totalModels} Models • {totals.totalQuantity} Pcs Total
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -191,11 +204,13 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
           {/* Top Summary Stats Bar */}
           <div className="px-4 sm:px-6 py-3 bg-indigo-50/30 border-b border-indigo-100 grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 text-center">
             <div className="bg-white p-2.5 rounded-xl border border-indigo-100/70 shadow-2xs">
-              <p className="text-[10px] font-bold text-gray-500 uppercase">Total Stock</p>
+              <p className="text-[10px] font-bold text-gray-500 uppercase">Total Stock (All)</p>
               <p className="text-base sm:text-lg font-black text-indigo-900">
                 {totals.totalQuantity} <span className="text-xs font-normal text-gray-500">Pcs</span>
               </p>
-              <p className="text-[10px] text-gray-400">{totals.inStockModels} in stock / {totals.totalModels} models</p>
+              <p className="text-[10px] text-gray-500 font-medium">
+                New: {totals.brandNewQuantity} • Used: {totals.usedQuantity} • Bar: {totals.barQuantity}
+              </p>
             </div>
 
             <div className="bg-white p-2.5 rounded-xl border border-indigo-100/70 shadow-2xs">
@@ -299,6 +314,15 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
                 >
                   Used
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setConditionFilter('bar')}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                    conditionFilter === 'bar' ? 'bg-white text-purple-700 shadow-2xs' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  Bar
+                </button>
               </div>
 
               {/* Sort selector for mobile / dropdown */}
@@ -395,6 +419,10 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
                             {product.condition === 'used' ? (
                               <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
                                 Used
+                              </span>
+                            ) : product.is_bar_phone ? (
+                              <span className="text-[10px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                                Bar
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-100">

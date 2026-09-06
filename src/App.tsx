@@ -1651,7 +1651,7 @@ export default function App() {
                 value={products.length} 
                 suffix=" Models"
                 colorClass="bg-indigo-600" 
-                subtitle="Click for Summary"
+                subtitle={`${products.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0)} Pcs (All Stock)`}
                 subtitleClass="text-indigo-800 bg-indigo-50 border-indigo-200"
                 onClick={() => setIsProductSummaryOpen(true)}
               />
