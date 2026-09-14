@@ -75,6 +75,7 @@ import { BrandStockModal } from './components/BrandStockModal';
 import { UsedMobileModal } from './components/UsedMobileModal';
 import { ProductSummaryModal } from './components/ProductSummaryModal';
 import { BarPhoneModal } from './components/BarPhoneModal';
+import { ColorSelector, DEFAULT_POPULAR_COLORS } from './components/ColorSelector';
 
 // --- Components ---
 
@@ -442,6 +443,62 @@ export default function App() {
     image: null as File | null,
     image_file_id: ''
   });
+
+  // Persistent Custom Colors
+  const [customColors, setCustomColors] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('app_custom_colors');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleAddNewColor = useCallback((newColor: string) => {
+    const trimmed = (newColor || '').trim();
+    if (!trimmed) return;
+    setCustomColors(prev => {
+      if (prev.some(c => c.toLowerCase() === trimmed.toLowerCase())) return prev;
+      const updated = [...prev, trimmed];
+      try {
+        localStorage.setItem('app_custom_colors', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to save custom color', err);
+      }
+      return updated;
+    });
+  }, []);
+
+  // Aggregated list of colors from database products, custom added colors, and popular presets
+  const allAvailableColors = useMemo(() => {
+    const set = new Set<string>();
+
+    // 1. Add colors from existing products in inventory
+    (products || []).forEach(p => {
+      if (p.color && p.color.trim()) set.add(p.color.trim());
+      if (p.imei_units) {
+        p.imei_units.forEach(u => {
+          if (u.color && u.color.trim()) set.add(u.color.trim());
+        });
+      }
+      if (p.imei_colors) {
+        Object.values(p.imei_colors).forEach((c: any) => {
+          if (c && typeof c === 'string' && c.trim()) set.add(c.trim());
+        });
+      }
+    });
+
+    // 2. Add custom added colors
+    customColors.forEach(c => {
+      if (c && c.trim()) set.add(c.trim());
+    });
+
+    // 3. Add default popular mobile colors
+    DEFAULT_POPULAR_COLORS.forEach(c => set.add(c));
+
+    return Array.from(set);
+  }, [products, customColors]);
+
   const [saleImeiInput, setSaleImeiInput] = useState('');
   const [cashImeiInput, setCashImeiInput] = useState('');
 
@@ -746,6 +803,7 @@ export default function App() {
     if (uColor) {
       if (i1) updatedColors[i1] = uColor;
       if (i2) updatedColors[i2] = uColor;
+      handleAddNewColor(uColor);
     }
 
     setNewProduct(prev => ({
@@ -809,6 +867,10 @@ export default function App() {
           if (i && !allImeis.includes(i)) allImeis.push(i);
           if (newProduct.color && !imeiColors[i]) imeiColors[i] = newProduct.color;
         });
+      }
+
+      if (newProduct.color) {
+        handleAddNewColor(newProduct.color);
       }
 
       // 1 Piece = 1 Unit (even if it has 2 IMEIs)
@@ -2226,14 +2288,21 @@ export default function App() {
           )}
 
           {!newProduct.is_bar_phone && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Color</label>
-              <input 
-                type="text"
+            <div className="bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80">
+              <ColorSelector 
+                label="Product Color (কালার সিলেক্ট করুন বা নতুন লিখুন)"
                 value={newProduct.color}
-                onChange={e => setNewProduct({...newProduct, color: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="e.g. Titanium Black, Deep Purple, Blue, Gold..."
+                onChange={selectedColor => {
+                  setNewProduct(prev => ({
+                    ...prev, 
+                    color: selectedColor,
+                    tempUnitColor: (!prev.tempUnitColor || prev.tempUnitColor === prev.color) ? selectedColor : prev.tempUnitColor
+                  }));
+                  if (selectedColor) handleAddNewColor(selectedColor);
+                }}
+                availableColors={allAvailableColors}
+                onAddNewColor={handleAddNewColor}
+                placeholder="-- Select Color (রং নির্বাচন করুন) --"
               />
             </div>
           )}
@@ -2372,21 +2441,18 @@ export default function App() {
 
                   {/* Unit Color */}
                   <div className="sm:col-span-3">
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Color (রং)
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder={newProduct.color || "e.g. Blue"}
+                    <ColorSelector
+                      compact
+                      label="Color (রং)"
+                      placeholder={newProduct.color || "Select Color..."}
                       value={newProduct.tempUnitColor || ''}
-                      onChange={e => setNewProduct({...newProduct, tempUnitColor: e.target.value})}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddImeiUnit();
-                        }
+                      onChange={color => {
+                        setNewProduct(prev => ({ ...prev, tempUnitColor: color }));
+                        if (color) handleAddNewColor(color);
                       }}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-xs font-medium"
+                      availableColors={allAvailableColors}
+                      onAddNewColor={handleAddNewColor}
+                      onEnterPress={handleAddImeiUnit}
                     />
                   </div>
                 </div>
