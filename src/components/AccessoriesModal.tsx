@@ -254,6 +254,7 @@ interface AccessoriesModalProps {
   onClose: () => void;
   products: Product[];
   sales: Sale[];
+  isReadOnly?: boolean;
   onAddAccessory: (data: {
     name: string;
     accessory_category: string;
@@ -282,6 +283,7 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
   onClose,
   products,
   sales,
+  isReadOnly = false,
   onAddAccessory,
   onEditAccessory,
   onDeleteAccessory,
@@ -424,6 +426,10 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
   // Handle submit Add / Edit
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)।');
+      return;
+    }
     if (!formData.name.trim()) {
       alert('অনুগ্রহ করে পণ্যের নাম (Product Name) লিখুন');
       return;
@@ -481,6 +487,10 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
   // Handle Confirm Sell
   const handleConfirmSell = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)।');
+      return;
+    }
     if (!sellingProduct) return;
 
     const available = Number(sellingProduct.quantity) || 0;
@@ -583,21 +593,23 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
                 <span>Stock List ({accessoryProducts.length})</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setActiveTab('add');
-                }}
-                className={`px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'add'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>{editingId ? 'Edit Product' : 'Add New Accessory'}</span>
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetForm();
+                    setActiveTab('add');
+                  }}
+                  className={`px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === 'add'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{editingId ? 'Edit Product' : 'Add New Accessory'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -614,7 +626,7 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
             </div>
 
             {/* Quick action button */}
-            {activeTab === 'stock' && accessoryProducts.length > 0 && (
+            {activeTab === 'stock' && accessoryProducts.length > 0 && !isReadOnly && (
               <button
                 type="button"
                 onClick={() => {
@@ -879,41 +891,47 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
                               </td>
 
                               <td className="px-3.5 py-3 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  {stockQty > 0 && (
+                                {isReadOnly ? (
+                                  <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded">
+                                    View only
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1">
+                                    {stockQty > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openQuickSell(p)}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                                        title="Sell this accessory"
+                                      >
+                                        <ShoppingCart className="w-3 h-3" />
+                                        <span>Sell</span>
+                                      </button>
+                                    )}
+
                                     <button
                                       type="button"
-                                      onClick={() => openQuickSell(p)}
-                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
-                                      title="Sell this accessory"
+                                      onClick={() => startEdit(p)}
+                                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                      title="Edit"
                                     >
-                                      <ShoppingCart className="w-3 h-3" />
-                                      <span>Sell</span>
+                                      <Edit2 className="w-3.5 h-3.5" />
                                     </button>
-                                  )}
 
-                                  <button
-                                    type="button"
-                                    onClick={() => startEdit(p)}
-                                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Edit"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (window.confirm(`আপনি কি "${p.name}" মুছে ফেলতে চান?`)) {
-                                        onDeleteAccessory(p.id);
-                                      }
-                                    }}
-                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (window.confirm(`আপনি কি "${p.name}" মুছে ফেলতে চান?`)) {
+                                          onDeleteAccessory(p.id);
+                                        }
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           );

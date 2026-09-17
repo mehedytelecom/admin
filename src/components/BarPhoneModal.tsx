@@ -19,6 +19,7 @@ interface BarPhoneModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
+  isReadOnly?: boolean;
   onAddProduct?: (isBarPhone: boolean) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
@@ -29,6 +30,7 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
   isOpen,
   onClose,
   products,
+  isReadOnly = false,
   onAddProduct,
   onEditProduct,
   onDeleteProduct,
@@ -241,30 +243,36 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => onSellProduct(p, true)}
-                              disabled={(Number(p.quantity) || 0) <= 0}
-                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs flex items-center gap-1"
-                              title="Sell Product"
-                            >
-                              <ShoppingCart className="w-3.5 h-3.5" /> Sell
-                            </button>
-                            <button
-                              onClick={() => onEditProduct(p)}
-                              className="p-1.5 bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => onDeleteProduct(p.id)}
-                              className="p-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          {isReadOnly ? (
+                            <span className="text-[11px] text-gray-400 font-medium px-2 py-0.5 bg-gray-100 rounded">
+                              View only
+                            </span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => onSellProduct(p, true)}
+                                disabled={(Number(p.quantity) || 0) <= 0}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-lg text-xs transition-colors shadow-2xs flex items-center gap-1"
+                                title="Sell Product"
+                              >
+                                <ShoppingCart className="w-3.5 h-3.5" /> Sell
+                              </button>
+                              <button
+                                onClick={() => onEditProduct(p)}
+                                className="p-1.5 bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 rounded-lg transition-colors"
+                                title="Edit"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => onDeleteProduct(p.id)}
+                                className="p-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 rounded-lg transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

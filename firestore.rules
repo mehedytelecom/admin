@@ -61,6 +61,11 @@ service cloud.firestore {
         (request.auth.token.email == "mehedyhossain160619@gmail.com" || request.auth.token.email == "likee350@gmail.com");
     }
 
+    function isViewer() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "brakib848@gmail.com" || isSuperAdmin());
+    }
+
     function isValidSettings(data) {
       return (!('banner_file_id' in data) || (data.banner_file_id is string && data.banner_file_id.size() < 100)) &&
              (!('logo_file_id' in data) || (data.logo_file_id is string && data.logo_file_id.size() < 100));
@@ -71,23 +76,28 @@ service cloud.firestore {
     // ===============================================================
 
     match /products/{productId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isViewer();
+      allow write: if isSuperAdmin();
     }
 
     match /sales/{saleId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isViewer();
+      allow write: if isSuperAdmin();
     }
 
     match /mobile_bazar/{recordId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isViewer();
+      allow write: if isSuperAdmin();
     }
     
     match /users/{userId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isViewer();
+      allow write: if isSuperAdmin();
     }
 
     match /settings/{settingId} {
-      allow read, write: if isSuperAdmin();
+      allow read: if isViewer();
+      allow write: if isSuperAdmin();
     }
 
     match /test/{testId} {

@@ -366,6 +366,7 @@ const LogoBranding: React.FC<{ fileId: string | null; className?: string }> = ({
 
 // --- Constants ---
 const ADMIN_EMAILS = ['mehedyhossain160619@gmail.com', 'likee350@gmail.com'];
+const VIEWER_EMAILS = ['brakib848@gmail.com'];
 
 // --- Main App ---
 
@@ -378,7 +379,11 @@ export default function App() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
   
-  const isSuperAdmin = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
+  const userEmail = (user?.email || '').toLowerCase().trim();
+  const isSuperAdmin = Boolean(userEmail && ADMIN_EMAILS.includes(userEmail));
+  const isViewer = Boolean(userEmail && VIEWER_EMAILS.includes(userEmail));
+  const isAuthorized = isSuperAdmin || isViewer;
+  const isReadOnly = isViewer && !isSuperAdmin;
   // Modals
   const [activeScanner, setActiveScanner] = useState<'product' | 'productImei1' | 'productImei2' | 'sale' | 'cashSale' | 'search' | null>(null);
   const [activePhotoCapture, setActivePhotoCapture] = useState<'sale' | 'editSale' | null>(null);
@@ -758,6 +763,10 @@ export default function App() {
     color?: string;
     condition_note?: string;
   }) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। এক্সেসরিজ যোগ করার অনুমতি নেই।');
+      return;
+    }
     const profit = data.selling_price - data.purchase_price;
     await addDoc(collection(db, 'products'), {
       name: data.name,
@@ -780,10 +789,18 @@ export default function App() {
   };
 
   const handleEditAccessory = async (id: string, data: Partial<Product>) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। এডিট করার অনুমতি নেই।');
+      return;
+    }
     await updateDoc(doc(db, 'products', id), data);
   };
 
   const handleDeleteAccessory = async (id: string) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। মুছে ফেলার অনুমতি নেই।');
+      return;
+    }
     await deleteDoc(doc(db, 'products', id));
   };
 
@@ -796,6 +813,10 @@ export default function App() {
     saleDate: string;
     isCashSale: boolean;
   }) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। পণ্য বিক্রয় করার অনুমতি নেই।');
+      return;
+    }
     const currentQty = Number(data.product.quantity) || 0;
     const remainingQty = Math.max(0, currentQty - data.quantity);
     const unitPrice = data.salePrice / (data.quantity || 1);
@@ -832,6 +853,10 @@ export default function App() {
 
   // Actions
   const handleDeleteProduct = async (id: string) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। পণ্য মুছে ফেলার অনুমতি নেই।');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteDoc(doc(db, 'products', id));
@@ -842,6 +867,10 @@ export default function App() {
   };
 
   const handleClearAllStock = async () => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)।');
+      return;
+    }
     if (products.length === 0) {
       alert('বর্তমানে স্টকে কোনো পণ্য নেই, স্টক ইতিমধ্যে সম্পূর্ণ খালি।');
       return;
@@ -917,6 +946,10 @@ export default function App() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। নতুন পণ্য যোগ বা এডিট করার অনুমতি নেই।');
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1024,6 +1057,10 @@ export default function App() {
 
   const handleSaleProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। পণ্য বিক্রয় করার অনুমতি নেই।');
+      return;
+    }
     if (isSubmitting) return;
     if (newSale.images.length === 0) {
       alert('Please upload at least one image');
@@ -1113,6 +1150,10 @@ export default function App() {
 
   const handleCashSale = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। পণ্য বিক্রয় করার অনুমতি নেই।');
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1184,6 +1225,10 @@ export default function App() {
   };
 
   const handleDeleteSale = async (id: string, productId: string) => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। বিক্রয় রেকর্ড মুছে ফেলার অনুমতি নেই।');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this sale record? This will restore the product quantity back to inventory if the product still exists.')) return;
     try {
       await deleteDoc(doc(db, 'sales', id));
@@ -1215,6 +1260,10 @@ export default function App() {
 
   const handleEditSale = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)। বিক্রয় এডিট করার অনুমতি নেই।');
+      return;
+    }
     if (!editingSale || isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1258,6 +1307,10 @@ export default function App() {
 
   const handleMobileBazarSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)।');
+      return;
+    }
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -1295,6 +1348,10 @@ export default function App() {
   };
 
   const handleResetMobileBazar = async () => {
+    if (isReadOnly) {
+      alert('আপনার অ্যাকাউন্টটি শুধুমাত্র দেখার জন্য (Read-Only)।');
+      return;
+    }
     console.log('Resetting Mobile Bazar records...', mobileBazarRecords.length);
     if (mobileBazarRecords.length === 0) {
       alert('No records to clear.');
@@ -1551,7 +1608,7 @@ export default function App() {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!isAuthorized) {
     return <RestrictedAccess user={user} onLogout={handleLogout} />;
   }
 
@@ -1565,8 +1622,13 @@ export default function App() {
         
         {/* Action Buttons & User Info - Top Right */}
         <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 flex items-center gap-1 sm:gap-3">
-          <div className="hidden lg:flex flex-col items-end mr-1">
-            <span className="text-[8px] font-black text-gray-900 uppercase tracking-wider bg-white/20 px-1 rounded">{user.displayName}</span>
+          <div className="flex flex-col items-end mr-1">
+            <span className="text-[9px] font-black text-gray-900 uppercase tracking-wider bg-white/70 backdrop-blur-xs px-1.5 py-0.5 rounded shadow-xs">{user.displayName || user.email}</span>
+            {isReadOnly && (
+              <span className="text-[10px] font-bold text-amber-950 bg-amber-200/95 backdrop-blur-xs px-2 py-0.5 rounded-full mt-0.5 flex items-center gap-1 shadow-xs border border-amber-300">
+                <Eye className="w-3 h-3 text-amber-900" /> ভিউয়ার (Read-Only)
+              </span>
+            )}
           </div>
           <button 
             onClick={() => setIsSettingsOpen(true)}
@@ -1731,46 +1793,65 @@ export default function App() {
                 </span>
               </button>
 
-              <button 
-                onClick={() => {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, tempImei1: '', tempImei2: '', imei_units: [], imeis: [], imei_colors: {}, image: null, image_file_id: '' });
-                  setIsAddProductOpen(true);
-                }}
-                className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 cursor-pointer"
-              >
-                <Plus className="w-5 h-5" /> Add Product
-              </button>
-              
-              <button 
-                onClick={() => {
-                  setSaleImeiInput('');
-                  setCashImeiInput('');
-                  setNewSale({
-                    customer_name: '',
-                    phone_number: '',
-                    nid_number: '',
-                    address: '',
-                    guarantor_number: '',
-                    product_id: '',
-                    imei: '',
-                    color: '',
-                    images: [],
-                    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                  });
-                  setCashSale({
-                    product_id: '',
-                    imei: '',
-                    color: '',
-                    actual_sale_price: '',
-                    sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                  });
-                  setSaleTab('emi');
-                  setIsSaleProductOpen(true);
-                }}
-                className="flex items-center justify-center gap-2 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100"
-              >
-                <ShoppingCart className="w-5 h-5" /> Sell Product
-              </button>
+              {isReadOnly ? (
+                <div className="p-4 bg-amber-50/90 rounded-2xl border border-amber-200 text-amber-900 shadow-xs flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-200/80 text-amber-800">
+                      <Eye className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold block text-amber-950">ভিউয়ার মোড (Viewer Access)</span>
+                      <span className="text-[11px] text-amber-700 block">ইনভেন্টরি ও বিক্রয় শুধুমাত্র দেখার জন্য (No Add / Edit / Sell)</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-1 rounded-md uppercase tracking-wider">
+                    Read-Only
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => {
+                      setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, tempImei1: '', tempImei2: '', imei_units: [], imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                      setIsAddProductOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 cursor-pointer"
+                  >
+                    <Plus className="w-5 h-5" /> Add Product
+                  </button>
+                  
+                  <button 
+                    onClick={() => {
+                      setSaleImeiInput('');
+                      setCashImeiInput('');
+                      setNewSale({
+                        customer_name: '',
+                        phone_number: '',
+                        nid_number: '',
+                        address: '',
+                        guarantor_number: '',
+                        product_id: '',
+                        imei: '',
+                        color: '',
+                        images: [],
+                        sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                      });
+                      setCashSale({
+                        product_id: '',
+                        imei: '',
+                        color: '',
+                        actual_sale_price: '',
+                        sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+                      });
+                      setSaleTab('emi');
+                      setIsSaleProductOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100"
+                  >
+                    <ShoppingCart className="w-5 h-5" /> Sell Product
+                  </button>
+                </>
+              )}
               <button 
                 onClick={() => setIsSaleListOpen(true)}
                 className="flex items-center justify-center gap-2 py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100"
@@ -2114,45 +2195,51 @@ export default function App() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button 
-                          onClick={() => {
-                            setNewProduct({
-                              id: product.id,
-                              name: product.name,
-                              purchase_price: String(product.purchase_price),
-                              selling_price: String(product.selling_price),
-                              quantity: '0',
-                              ram: product.ram || '',
-                              rom: product.rom || '',
-                              color: product.color || '',
-                              condition: product.condition || 'new',
-                              condition_note: product.condition_note || '',
-                              is_bar_phone: Boolean(product.is_bar_phone),
-                              imei_units: product.imei_units || [],
-                              tempImei1: '',
-                              tempImei2: '',
-                              imeis: [],
-                              imei_colors: {},
-                              image: null,
-                              image_file_id: product.image_file_id || ''
-                            });
-                            setIsAddProductOpen(true);
-                          }}
-                          className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                          title="Edit / Restock"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <td className="px-4 sm:px-6 py-4 text-center">
+                      {isReadOnly ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-md">
+                          <Eye className="w-3 h-3 text-gray-400" /> View only
+                        </span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setNewProduct({
+                                id: product.id,
+                                name: product.name,
+                                purchase_price: String(product.purchase_price),
+                                selling_price: String(product.selling_price),
+                                quantity: '0',
+                                ram: product.ram || '',
+                                rom: product.rom || '',
+                                color: product.color || '',
+                                condition: product.condition || 'new',
+                                condition_note: product.condition_note || '',
+                                is_bar_phone: Boolean(product.is_bar_phone),
+                                imei_units: product.imei_units || [],
+                                tempImei1: '',
+                                tempImei2: '',
+                                imeis: [],
+                                imei_colors: {},
+                                image: null,
+                                image_file_id: product.image_file_id || ''
+                              });
+                              setIsAddProductOpen(true);
+                            }}
+                            className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                            title="Edit / Restock"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -2162,17 +2249,21 @@ export default function App() {
                       <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                         <Package className="w-10 h-10 text-gray-300" />
                         <p className="font-bold text-gray-700 text-sm">স্টকে কোনো পণ্য নেই (No Stock in Inventory)</p>
-                        <p className="text-xs text-gray-400">নতুন পণ্য এন্ট্রি করতে নিচে ক্লিক করুন</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
-                            setIsAddProductOpen(true);
-                          }}
-                          className="mt-2 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-100"
-                        >
-                          <Plus className="w-4 h-4" /> Add New Product
-                        </button>
+                        {!isReadOnly && (
+                          <>
+                            <p className="text-xs text-gray-400">নতুন পণ্য এন্ট্রি করতে নিচে ক্লিক করুন</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                                setIsAddProductOpen(true);
+                              }}
+                              className="mt-2 flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-100"
+                            >
+                              <Plus className="w-4 h-4" /> Add New Product
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -3941,7 +4032,7 @@ export default function App() {
         onClose={() => setIsBrandStockOpen(false)}
         products={products}
         totalQuantity={stats.totalQuantity}
-        onSellProduct={(product, isCash) => {
+        onSellProduct={isReadOnly ? undefined : (product, isCash) => {
           setIsBrandStockOpen(false);
           if (isCash) {
             setCashSale(prev => ({
@@ -3969,7 +4060,7 @@ export default function App() {
         isOpen={isUsedMobileModalOpen}
         onClose={() => setIsUsedMobileModalOpen(false)}
         products={products}
-        onSellProduct={(product, isCash) => {
+        onSellProduct={isReadOnly ? undefined : (product, isCash) => {
           setIsUsedMobileModalOpen(false);
           if (isCash) {
             setCashSale(prev => ({
@@ -3990,7 +4081,7 @@ export default function App() {
             setIsSaleProductOpen(true);
           }
         }}
-        onEditProduct={(product) => {
+        onEditProduct={isReadOnly ? undefined : (product) => {
           setIsUsedMobileModalOpen(false);
           setNewProduct({
             id: product.id,
@@ -4021,7 +4112,7 @@ export default function App() {
         isOpen={isProductSummaryOpen}
         onClose={() => setIsProductSummaryOpen(false)}
         products={products}
-        onSellProduct={(product, isCash) => {
+        onSellProduct={isReadOnly ? undefined : (product, isCash) => {
           setIsProductSummaryOpen(false);
           if (isCash) {
             setCashSale(prev => ({
@@ -4042,7 +4133,7 @@ export default function App() {
             setIsSaleProductOpen(true);
           }
         }}
-        onEditProduct={(product) => {
+        onEditProduct={isReadOnly ? undefined : (product) => {
           setIsProductSummaryOpen(false);
           setNewProduct({
             id: product.id,
@@ -4073,7 +4164,8 @@ export default function App() {
         isOpen={isBarPhoneModalOpen}
         onClose={() => setIsBarPhoneModalOpen(false)}
         products={products}
-        onAddProduct={(isBarPhone) => {
+        isReadOnly={isReadOnly}
+        onAddProduct={isReadOnly ? undefined : (isBarPhone) => {
           setIsBarPhoneModalOpen(false);
           setNewProduct({
             id: '',
@@ -4097,7 +4189,7 @@ export default function App() {
           });
           setIsAddProductOpen(true);
         }}
-        onEditProduct={(product) => {
+        onEditProduct={isReadOnly ? undefined : (product) => {
           setIsBarPhoneModalOpen(false);
           setNewProduct({
             id: product.id,
@@ -4121,8 +4213,8 @@ export default function App() {
           });
           setIsAddProductOpen(true);
         }}
-        onDeleteProduct={handleDeleteProduct}
-        onSellProduct={(product, isCash) => {
+        onDeleteProduct={isReadOnly ? undefined : handleDeleteProduct}
+        onSellProduct={isReadOnly ? undefined : (product, isCash) => {
           setIsBarPhoneModalOpen(false);
           if (isCash) {
             setCashSale(prev => ({
@@ -4151,6 +4243,7 @@ export default function App() {
         onClose={() => setIsAccessoriesModalOpen(false)}
         products={products}
         sales={sales}
+        isReadOnly={isReadOnly}
         onAddAccessory={handleAddAccessory}
         onEditAccessory={handleEditAccessory}
         onDeleteAccessory={handleDeleteAccessory}
@@ -4624,19 +4717,27 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div className="flex justify-end gap-3 flex-wrap">
-              <button 
-                onClick={() => handleDeleteSale(selectedSale.id, selectedSale.product_id)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors mr-auto"
-              >
-                <Trash2 className="w-4 h-4" /> Delete
-              </button>
-              <button 
-                onClick={() => setEditingSale(selectedSale)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
-              >
-                <Edit2 className="w-4 h-4" /> Edit Sale
-              </button>
+            <div className="flex justify-end gap-3 flex-wrap items-center">
+              {!isReadOnly ? (
+                <>
+                  <button 
+                    onClick={() => handleDeleteSale(selectedSale.id, selectedSale.product_id)}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors mr-auto"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                  <button 
+                    onClick={() => setEditingSale(selectedSale)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" /> Edit Sale
+                  </button>
+                </>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl font-medium mr-auto">
+                  <Eye className="w-3.5 h-3.5 text-amber-600" /> বিক্রয় রেকর্ড শুধু দেখার জন্য (View only)
+                </span>
+              )}
               <button 
                 onClick={() => setSelectedSale(null)}
                 className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
