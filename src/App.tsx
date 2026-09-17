@@ -40,7 +40,8 @@ import {
   ChevronLeft,
   Smartphone,
   Boxes,
-  CheckCircle2
+  CheckCircle2,
+  Headphones
 } from 'lucide-react';
 import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
@@ -75,6 +76,7 @@ import { BrandStockModal } from './components/BrandStockModal';
 import { UsedMobileModal } from './components/UsedMobileModal';
 import { ProductSummaryModal } from './components/ProductSummaryModal';
 import { BarPhoneModal } from './components/BarPhoneModal';
+import { AccessoriesModal } from './components/AccessoriesModal';
 import { ColorSelector, DEFAULT_POPULAR_COLORS } from './components/ColorSelector';
 
 // --- Components ---
@@ -395,6 +397,7 @@ export default function App() {
   const [isUsedMobileModalOpen, setIsUsedMobileModalOpen] = useState(false);
   const [isProductSummaryOpen, setIsProductSummaryOpen] = useState(false);
   const [isBarPhoneModalOpen, setIsBarPhoneModalOpen] = useState(false);
+  const [isAccessoriesModalOpen, setIsAccessoriesModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isClearStockModalOpen, setIsClearStockModalOpen] = useState(false);
   const [notAvailableImei, setNotAvailableImei] = useState<{ isOpen: boolean; imei: string; source: 'sale' | 'cashSale' | 'search' }>({
@@ -711,13 +714,19 @@ export default function App() {
       return acc + r.net_amount;
     }, 0);
 
-    const usedProducts = products.filter(p => p.condition === 'used');
+    const usedProducts = products.filter(p => p.condition === 'used' && !p.is_accessory);
     const usedQuantity = usedProducts.reduce((acc, p) => acc + p.quantity, 0);
     const usedProductsCount = usedProducts.length;
 
-    const barProducts = products.filter(p => p.is_bar_phone);
+    const barProducts = products.filter(p => p.is_bar_phone && !p.is_accessory);
     const barQuantity = barProducts.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
     const barProductsCount = barProducts.length;
+
+    const accessoryProducts = products.filter(p => p.is_accessory);
+    const accessoryQuantity = accessoryProducts.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
+    const accessoryProductsCount = accessoryProducts.length;
+
+    const brandNewQuantity = products.filter(p => (p.condition || 'new') === 'new' && !p.is_bar_phone && !p.is_accessory).reduce((acc, p) => acc + p.quantity, 0);
 
     return {
       todayCount: todaySales.length,
@@ -726,15 +735,100 @@ export default function App() {
       monthlyProfit,
       monthlyTotalSale: currentMonthTotal,
       totalProducts: products.length,
-      totalQuantity: products.filter(p => p.condition !== 'used').reduce((acc, p) => acc + p.quantity, 0),
+      totalQuantity: brandNewQuantity,
       totalStockValue: products.reduce((acc, p) => acc + Math.round((Number(p.purchase_price) || 0) * (Number(p.quantity) || 0)), 0),
       usedQuantity,
       usedProductsCount,
       barQuantity,
       barProductsCount,
+      accessoryQuantity,
+      accessoryProductsCount,
       mobileBazarTotal
     };
   }, [sales, products, mobileBazarRecords, currentMonthTotal, calculateDynamicProfit]);
+
+  // Accessory Handlers
+  const handleAddAccessory = async (data: {
+    name: string;
+    accessory_category: string;
+    purchase_price: number;
+    selling_price: number;
+    quantity: number;
+    brand?: string;
+    color?: string;
+    condition_note?: string;
+  }) => {
+    const profit = data.selling_price - data.purchase_price;
+    await addDoc(collection(db, 'products'), {
+      name: data.name,
+      purchase_price: data.purchase_price,
+      selling_price: data.selling_price,
+      profit_margin: profit,
+      quantity: data.quantity,
+      brand: data.brand || '',
+      color: data.color || '',
+      condition: 'new',
+      condition_note: data.condition_note || '',
+      is_bar_phone: false,
+      is_accessory: true,
+      accessory_category: data.accessory_category,
+      imeis: [],
+      imei_units: [],
+      imei_colors: {},
+      created_at: new Date().toISOString()
+    });
+  };
+
+  const handleEditAccessory = async (id: string, data: Partial<Product>) => {
+    await updateDoc(doc(db, 'products', id), data);
+  };
+
+  const handleDeleteAccessory = async (id: string) => {
+    await deleteDoc(doc(db, 'products', id));
+  };
+
+  const handleSellAccessory = async (data: {
+    product: Product;
+    quantity: number;
+    salePrice: number;
+    customerName: string;
+    phoneNumber: string;
+    saleDate: string;
+    isCashSale: boolean;
+  }) => {
+    const currentQty = Number(data.product.quantity) || 0;
+    const remainingQty = Math.max(0, currentQty - data.quantity);
+    const unitPrice = data.salePrice / (data.quantity || 1);
+    const unitPurchase = Number(data.product.purchase_price) || 0;
+    const totalProfit = (unitPrice - unitPurchase) * data.quantity;
+
+    // 1. Add sale record
+    await addDoc(collection(db, 'sales'), {
+      customer_name: data.customerName || 'Cash Sale',
+      phone_number: data.phoneNumber || 'N/A',
+      nid_number: 'N/A',
+      address: 'N/A',
+      guarantor_number: 'N/A',
+      product_id: data.product.id,
+      product_name: data.product.name,
+      color: data.product.color || '',
+      image_file_ids: [],
+      sale_date: data.saleDate || new Date().toISOString(),
+      profit: totalProfit,
+      actual_sale_price: data.salePrice,
+      purchase_price: unitPurchase,
+      unit_price: unitPrice,
+      quantity_sold: data.quantity,
+      is_accessory: true,
+      accessory_category: data.product.accessory_category || 'other',
+      is_cash_sale: true
+    });
+
+    // 2. Decrease product quantity in stock
+    await updateDoc(doc(db, 'products', data.product.id), {
+      quantity: remainingQty
+    });
+  };
 
   // Actions
   const handleDeleteProduct = async (id: string) => {
@@ -1230,7 +1324,7 @@ export default function App() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    let result = sortedProducts;
+    let result = sortedProducts.filter(p => !p.is_accessory);
     if (productConditionFilter !== 'all') {
       result = result.filter(p => (p.condition || 'new') === productConditionFilter);
     }
@@ -1618,12 +1712,31 @@ export default function App() {
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 mb-8">
             <div className="flex flex-col gap-3 sm:gap-4">
+              {/* Accessories button on top */}
+              <button 
+                onClick={() => setIsAccessoriesModalOpen(true)}
+                className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-teal-700 via-emerald-600 to-teal-800 hover:from-teal-800 hover:to-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-teal-100 cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-white/20 text-white group-hover:scale-105 transition-transform">
+                    <Headphones className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-sm sm:text-base leading-tight block">Accessories (এক্সেসরিজ)</span>
+                    <span className="text-[10px] font-normal text-teal-100 block">বক্স/স্পিকার, গ্লাস, কেবিল, চার্জার, হেডফোন</span>
+                  </div>
+                </div>
+                <span className="text-xs bg-white/25 px-2.5 py-1 rounded-full text-white font-black border border-white/30">
+                  {stats.accessoryQuantity} Pcs
+                </span>
+              </button>
+
               <button 
                 onClick={() => {
                   setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, tempImei1: '', tempImei2: '', imei_units: [], imeis: [], imei_colors: {}, image: null, image_file_id: '' });
                   setIsAddProductOpen(true);
                 }}
-                className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100"
+                className="flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 cursor-pointer"
               >
                 <Plus className="w-5 h-5" /> Add Product
               </button>
@@ -1705,6 +1818,17 @@ export default function App() {
                 subtitle={`${stats.barProductsCount} Models`}
                 subtitleClass="text-blue-800 bg-blue-50 border-blue-200"
                 onClick={() => setIsBarPhoneModalOpen(true)}
+              />
+              {/* Accessories */}
+              <SummaryItem 
+                icon={Headphones} 
+                label="Accessories" 
+                value={stats.accessoryQuantity} 
+                suffix=" Pcs"
+                colorClass="bg-teal-600" 
+                subtitle={`${stats.accessoryProductsCount} Items`}
+                subtitleClass="text-teal-800 bg-teal-50 border-teal-200"
+                onClick={() => setIsAccessoriesModalOpen(true)}
               />
               {/* 4. Product Summary */}
               <SummaryItem 
@@ -1857,20 +1981,27 @@ export default function App() {
                   onClick={() => setProductConditionFilter('all')}
                   className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                  All ({products.length})
+                  All Phones ({products.filter(p => !p.is_accessory).length})
                 </button>
                 <button
                   onClick={() => setProductConditionFilter('new')}
                   className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                 >
-                  Brand New ({products.filter(p => (p.condition || 'new') === 'new').length})
+                  Brand New ({products.filter(p => (p.condition || 'new') === 'new' && !p.is_accessory).length})
                 </button>
                 <button
                   onClick={() => setProductConditionFilter('used')}
                   className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${productConditionFilter === 'used' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                 >
                   <RotateCcw className="w-3 h-3 text-amber-600" />
-                  Used ({products.filter(p => p.condition === 'used').length})
+                  Used ({products.filter(p => p.condition === 'used' && !p.is_accessory).length})
+                </button>
+                <button
+                  onClick={() => setIsAccessoriesModalOpen(true)}
+                  className="px-3 py-1 rounded-lg transition-all flex items-center gap-1 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 cursor-pointer"
+                >
+                  <Headphones className="w-3.5 h-3.5 text-teal-600" />
+                  Accessories ({stats.accessoryQuantity} Pcs)
                 </button>
               </div>
 
@@ -2068,6 +2199,29 @@ export default function App() {
         title={newProduct.id ? (newProduct.condition === 'used' ? "Update Used Product" : "Update Product") : (newProduct.condition === 'used' ? "Add Used Product (পুরাতন পণ্য)" : "Add New Product (নতুন পণ্য)")}
       >
         <form onSubmit={handleAddProduct} className="space-y-4">
+          {/* Quick link to Accessories */}
+          <div className="p-3 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-2xl border border-teal-200 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
+                <Headphones className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-bold text-xs text-teal-900">Accessories (বক্স/স্পিকার, মোবাইল গ্লাস, কেবিল, চার্জার)</div>
+                <div className="text-[10px] text-teal-700">বক্স/স্পিকার ও এক্সেসরিজ সহজে যোগ ও বিক্রি করতে এক্সেসরিজ উইন্ডো ব্যবহার করুন</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddProductOpen(false);
+                setIsAccessoriesModalOpen(true);
+              }}
+              className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold text-xs whitespace-nowrap shadow-xs cursor-pointer"
+            >
+              এক্সেসরিজ খুলুন
+            </button>
+          </div>
+
           {/* Bar Phone Checkbox */}
           <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -3989,6 +4143,18 @@ export default function App() {
             setIsSaleProductOpen(true);
           }
         }}
+      />
+
+      {/* Accessories Modal */}
+      <AccessoriesModal
+        isOpen={isAccessoriesModalOpen}
+        onClose={() => setIsAccessoriesModalOpen(false)}
+        products={products}
+        sales={sales}
+        onAddAccessory={handleAddAccessory}
+        onEditAccessory={handleEditAccessory}
+        onDeleteAccessory={handleDeleteAccessory}
+        onSellAccessory={handleSellAccessory}
       />
 
       {/* Mobile Bazar Modal */}

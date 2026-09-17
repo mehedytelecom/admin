@@ -21,6 +21,9 @@ export interface Product {
   imei_colors?: Record<string, string>;
   image_file_id?: string;
   is_bar_phone?: boolean;
+  is_accessory?: boolean;
+  accessory_category?: string;
+  brand?: string;
   created_at: string;
 }
 
@@ -45,6 +48,10 @@ export interface Sale {
   purchase_price?: number;
   actual_sale_price?: number;
   is_cash_sale?: boolean;
+  is_accessory?: boolean;
+  accessory_category?: string;
+  quantity_sold?: number;
+  unit_price?: number;
 }
 
 export interface MobileBazarRecord {
