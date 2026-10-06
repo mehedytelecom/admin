@@ -116,6 +116,16 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {!isReadOnly && onAddProduct && (
+                <button
+                  type="button"
+                  onClick={() => onAddProduct(true)}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Bar Phone</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}

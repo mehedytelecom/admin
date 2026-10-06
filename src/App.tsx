@@ -1380,6 +1380,20 @@ export default function App() {
     return [...products].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || 0);
   }, [products]);
 
+  // Existing products filtered specifically for Add Product modal based on category (Brand New vs Bar Phone vs Used)
+  const addModalExistingProducts = useMemo(() => {
+    if (newProduct.is_bar_phone) {
+      // Bar phones only
+      return sortedProducts.filter(p => Boolean(p.is_bar_phone) && !p.is_accessory);
+    }
+    if (newProduct.condition === 'used') {
+      // Used smartphones only (no bar phone, no accessories)
+      return sortedProducts.filter(p => !p.is_bar_phone && p.condition === 'used' && !p.is_accessory);
+    }
+    // Brand new smartphones only (no bar phone, no used, no accessories)
+    return sortedProducts.filter(p => !p.is_bar_phone && (p.condition || 'new') !== 'used' && !p.is_accessory);
+  }, [sortedProducts, newProduct.is_bar_phone, newProduct.condition]);
+
   const filteredProducts = useMemo(() => {
     let result = sortedProducts.filter(p => !p.is_accessory);
     if (productConditionFilter !== 'all') {
@@ -2328,7 +2342,23 @@ export default function App() {
               <input 
                 type="checkbox"
                 checked={Boolean(newProduct.is_bar_phone)}
-                onChange={e => setNewProduct({ ...newProduct, is_bar_phone: e.target.checked })}
+                onChange={e => {
+                  const isBar = e.target.checked;
+                  setNewProduct(prev => ({
+                    ...prev,
+                    is_bar_phone: isBar,
+                    // If switching product type, clear selected existing product ID
+                    id: '',
+                    name: prev.id ? '' : prev.name,
+                    purchase_price: prev.id ? '' : prev.purchase_price,
+                    selling_price: prev.id ? '' : prev.selling_price,
+                    ram: isBar ? '' : prev.ram,
+                    rom: isBar ? '' : prev.rom,
+                    condition: isBar ? 'new' : prev.condition,
+                    condition_note: isBar ? '' : prev.condition_note,
+                    imei_units: isBar ? [] : prev.imei_units
+                  }));
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -2342,7 +2372,12 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setNewProduct({ ...newProduct, condition: 'new' })}
+                  onClick={() => setNewProduct(prev => ({
+                    ...prev,
+                    condition: 'new',
+                    id: prev.condition !== 'new' && prev.id ? '' : prev.id,
+                    condition_note: prev.condition !== 'new' ? '' : prev.condition_note
+                  }))}
                   className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
                     newProduct.condition === 'new'
                       ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-sm ring-1 ring-blue-500'
@@ -2354,13 +2389,17 @@ export default function App() {
                   </div>
                   <div>
                     <div className="font-bold text-sm">Brand New</div>
-                    <div className="text-[11px] text-gray-500">নতুন ইনটেক পণ্য</div>
+                    <div className="text-[11px] text-gray-500">নতুন ইনটেক স্মার্টফোন</div>
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setNewProduct({ ...newProduct, condition: 'used' })}
+                  onClick={() => setNewProduct(prev => ({
+                    ...prev,
+                    condition: 'used',
+                    id: prev.condition !== 'used' && prev.id ? '' : prev.id
+                  }))}
                   className={`p-3 rounded-2xl border-2 flex items-center gap-3 transition-all text-left ${
                     newProduct.condition === 'used'
                       ? 'border-amber-600 bg-amber-50/70 text-amber-900 shadow-sm ring-1 ring-amber-500'
@@ -2372,7 +2411,7 @@ export default function App() {
                   </div>
                   <div>
                     <div className="font-bold text-sm">Used / 2nd Hand</div>
-                    <div className="text-[11px] text-gray-500">ব্যবহৃত / পুরাতন পণ্য</div>
+                    <div className="text-[11px] text-gray-500">ব্যবহৃত / পুরাতন স্মার্টফোন</div>
                   </div>
                 </button>
               </div>
@@ -2412,8 +2451,21 @@ export default function App() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Select Existing Product (Optional)</label>
+          {/* Select Existing Product (Separated by Brand New vs Bar Phone vs Used) */}
+          <div className="p-3.5 bg-gray-50/80 rounded-2xl border border-gray-200">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                {newProduct.is_bar_phone 
+                  ? "Select Existing Bar Phone (ঐচ্ছিক - পূর্বের বাটন ফোন মডেল)" 
+                  : newProduct.condition === 'used'
+                    ? "Select Existing Used Product (ঐচ্ছিক - পূর্বের পুরাতন ফোন)"
+                    : "Select Existing Brand New Product (ঐচ্ছিক - পূর্বের ব্র্যান্ড নিউ মডেল)"}
+              </label>
+              <span className="text-[11px] font-semibold text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-200 shadow-2xs">
+                {addModalExistingProducts.length} {newProduct.is_bar_phone ? 'বাটন ফোন' : (newProduct.condition === 'used' ? 'ব্যবহৃত ফোন' : 'স্মার্টফোন')}
+              </span>
+            </div>
+            
             <select 
               value={newProduct.id}
               onChange={e => {
@@ -2430,6 +2482,7 @@ export default function App() {
                       ram: p.ram || '',
                       rom: p.rom || '',
                       color: p.color || '',
+                      tempUnitColor: '',
                       condition: p.condition || 'new',
                       condition_note: p.condition_note || '',
                       is_bar_phone: Boolean(p.is_bar_phone),
@@ -2443,14 +2496,41 @@ export default function App() {
                     });
                   }
                 } else {
-                  setNewProduct({ id: '', name: '', purchase_price: '', selling_price: '', quantity: '', ram: '', rom: '', color: '', condition: 'new', condition_note: '', is_bar_phone: false, imei_units: [], tempImei1: '', tempImei2: '', imeis: [], imei_colors: {}, image: null, image_file_id: '' });
+                  setNewProduct(prev => ({ 
+                    ...prev,
+                    id: '', 
+                    name: '', 
+                    purchase_price: '', 
+                    selling_price: '', 
+                    quantity: '', 
+                    ram: '', 
+                    rom: '', 
+                    color: '', 
+                    tempUnitColor: '',
+                    condition_note: '', 
+                    imei_units: [], 
+                    tempImei1: '', 
+                    tempImei2: '', 
+                    imeis: [], 
+                    imei_colors: {}, 
+                    image: null, 
+                    image_file_id: '' 
+                  }));
                 }
               }}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
             >
-              <option value="">-- Create New Product --</option>
-              {sortedProducts.map(p => (
-                <option key={p.id} value={p.id}>{p.condition === 'used' ? '[USED] ' : ''}{p.is_bar_phone ? '[BAR] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - Stock: {p.quantity}</option>
+              <option value="">
+                {newProduct.is_bar_phone 
+                  ? "-- Create New Bar Phone (নতুন বাটন ফোন মডেল তৈরি করুন) --" 
+                  : newProduct.condition === 'used'
+                    ? "-- Create New Used Smartphone (নতুন পুরাতন ফোন যোগ করুন) --"
+                    : "-- Create New Brand New Product (নতুন ব্র্যান্ড নিউ স্মার্টফোন মডেল তৈরি করুন) --"}
+              </option>
+              {addModalExistingProducts.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} {p.color ? `- ${p.color}` : ''} {p.condition_note ? `[${p.condition_note}]` : ''} — Stock: {p.quantity} Pcs (ক্রয়: ৳{p.purchase_price}, বিক্রয়: ৳{p.selling_price})
+                </option>
               ))}
             </select>
           </div>
