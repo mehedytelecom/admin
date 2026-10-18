@@ -78,6 +78,7 @@ import { ProductSummaryModal } from './components/ProductSummaryModal';
 import { BarPhoneModal } from './components/BarPhoneModal';
 import { AccessoriesModal } from './components/AccessoriesModal';
 import { ColorSelector, DEFAULT_POPULAR_COLORS } from './components/ColorSelector';
+import { getSaleBrandCategory, MonthlyBrandCategory } from './lib/brandUtils';
 
 // --- Components ---
 
@@ -427,6 +428,7 @@ export default function App() {
   // Form States
   const [productSearch, setProductSearch] = useState('');
   const [productConditionFilter, setProductConditionFilter] = useState<'all' | 'new' | 'used'>('all');
+  const [monthlySalesBrandFilter, setMonthlySalesBrandFilter] = useState<'all' | 'helio' | 'honor' | 'others'>('all');
   const [reportStartDate, setReportStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [reportEndDate, setReportEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -702,6 +704,48 @@ export default function App() {
       return acc + (product?.selling_price || ((s.profit || 0) + (s.purchase_price || 0)) || 0);
     }, 0);
   }, [currentMonthSales, products]);
+
+  // 3 Dedicated Counters for Monthly Sales List: 1st Helio, 2nd Honor, 3rd Others
+  const monthlyBrandBreakdown = useMemo(() => {
+    let helioCount = 0;
+    let honorCount = 0;
+    let othersCount = 0;
+    let helioAmount = 0;
+    let honorAmount = 0;
+    let othersAmount = 0;
+
+    currentMonthSales.forEach(s => {
+      const cat = getSaleBrandCategory(s, products);
+      const qty = Number(s.quantity_sold) || 1;
+      const price = s.actual_sale_price || (() => {
+        const prod = products.find(p => p.id === s.product_id);
+        return prod?.selling_price || ((s.profit || 0) + (s.purchase_price || 0)) || 0;
+      })();
+
+      if (cat === 'helio') {
+        helioCount += qty;
+        helioAmount += price;
+      } else if (cat === 'honor') {
+        honorCount += qty;
+        honorAmount += price;
+      } else {
+        othersCount += qty;
+        othersAmount += price;
+      }
+    });
+
+    return {
+      helio: { count: helioCount, amount: helioAmount },
+      honor: { count: honorCount, amount: honorAmount },
+      others: { count: othersCount, amount: othersAmount },
+      totalCount: helioCount + honorCount + othersCount
+    };
+  }, [currentMonthSales, products]);
+
+  const displayedMonthlySales = useMemo(() => {
+    if (monthlySalesBrandFilter === 'all') return currentMonthSales;
+    return currentMonthSales.filter(s => getSaleBrandCategory(s, products) === monthlySalesBrandFilter);
+  }, [currentMonthSales, monthlySalesBrandFilter, products]);
 
   const stats = useMemo(() => {
     const todaySales = sales.filter(s => isToday(parseISO(s.sale_date)));
@@ -1438,6 +1482,9 @@ export default function App() {
     let totalRetailPrice = 0;
     let totalMrp = 0;
     let totalProfit = 0;
+    let helioCount = 0;
+    let honorCount = 0;
+    let othersCount = 0;
 
     const rows = reportSales.map((s, idx) => {
       const product = products.find(p => p.id === s.product_id);
@@ -1446,6 +1493,12 @@ export default function App() {
         : (product?.purchase_price ?? Math.max(0, (s.actual_sale_price || 0) - s.profit));
       const mrp = s.actual_sale_price ?? product?.selling_price ?? 0;
       const profit = calculateDynamicProfit(s);
+      const cat = getSaleBrandCategory(s, products);
+      const qty = Number(s.quantity_sold) || 1;
+
+      if (cat === 'helio') helioCount += qty;
+      else if (cat === 'honor') honorCount += qty;
+      else othersCount += qty;
 
       totalRetailPrice += (retailPrice || 0);
       totalMrp += (mrp || 0);
@@ -1467,7 +1520,8 @@ export default function App() {
         customerMobile: s.phone_number || '-',
         retailPrice: retailPrice || 0,
         mrp: mrp || 0,
-        profit: profit
+        profit: profit,
+        category: cat
       };
     });
 
@@ -1475,7 +1529,10 @@ export default function App() {
       totalSales: reportSales.length, 
       totalRetailPrice,
       totalMrp,
-      totalProfit, 
+      totalProfit,
+      helioCount,
+      honorCount,
+      othersCount,
       rows,
       reportSales 
     };
@@ -1983,77 +2040,344 @@ export default function App() {
         {/* Current Month Sales Card */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-emerald-600" />
-              Monthly Sales List ({format(new Date(), 'MMMM')})
-            </h2>
-            <div className="flex items-center gap-3">
-              <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border border-blue-100">
-                Count: {currentMonthSales.length}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <TrendingUp className="w-6 h-6 text-emerald-600" />
+                Monthly Sales List ({format(new Date(), 'MMMM yyyy')})
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                চলতি মাসের ব্র্যান্ডভিত্তিক সেলস কাউন্টার এবং বিক্রয় তালিকা
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="px-3.5 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold border border-blue-100">
+                Total Sold: <span className="text-sm font-black">{monthlyBrandBreakdown.totalCount}</span> Pcs
               </div>
-              <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold border border-emerald-100">
-                Total: ৳{currentMonthTotal.toLocaleString()}
+              <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">
+                Total Value: <span className="text-sm font-black">৳{currentMonthTotal.toLocaleString()}</span>
               </div>
             </div>
           </div>
+
+          {/* 3 Brand Counters: 1st Helio, 2nd Honor, 3rd Others */}
+          <div className="p-4 sm:p-6 bg-slate-50/70 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <span>Brand Sales (চলতি মাসের সেলস)</span>
+              </span>
+              <div className="flex items-center gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setMonthlySalesBrandFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    monthlySalesBrandFilter === 'all'
+                      ? 'bg-gray-900 text-white shadow-2xs'
+                      : 'bg-white hover:bg-gray-200 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  All ({monthlyBrandBreakdown.totalCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthlySalesBrandFilter('helio')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    monthlySalesBrandFilter === 'helio'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'bg-white hover:bg-purple-50 text-purple-700 border border-purple-200'
+                  }`}
+                >
+                  Helio ({monthlyBrandBreakdown.helio.count})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthlySalesBrandFilter('honor')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    monthlySalesBrandFilter === 'honor'
+                      ? 'bg-sky-600 text-white shadow-2xs'
+                      : 'bg-white hover:bg-sky-50 text-sky-700 border border-sky-200'
+                  }`}
+                >
+                  Honor ({monthlyBrandBreakdown.honor.count})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthlySalesBrandFilter('others')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    monthlySalesBrandFilter === 'others'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-white hover:bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}
+                >
+                  Others ({monthlyBrandBreakdown.others.count})
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+              {/* Helio */}
+              <button
+                type="button"
+                onClick={() => setMonthlySalesBrandFilter(prev => prev === 'helio' ? 'all' : 'helio')}
+                className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between cursor-pointer relative ${
+                  monthlySalesBrandFilter === 'helio'
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300'
+                    : 'bg-white hover:bg-purple-50/50 border-purple-200 text-gray-900 shadow-2xs hover:border-purple-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                    monthlySalesBrandFilter === 'helio'
+                      ? 'bg-purple-800 text-purple-100'
+                      : 'bg-purple-100 text-purple-700'
+                  }`}>
+                    Helio
+                  </span>
+                  <span className={`text-[11px] font-medium ${
+                    monthlySalesBrandFilter === 'helio' ? 'text-purple-200' : 'text-gray-500'
+                  }`}>
+                    হেলিও
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">Helio</h3>
+                    <p className={`text-xs mt-0.5 ${
+                      monthlySalesBrandFilter === 'helio' ? 'text-purple-100' : 'text-purple-700 font-bold'
+                    }`}>
+                      ৳{monthlyBrandBreakdown.helio.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-3xl font-black">
+                      {monthlyBrandBreakdown.helio.count}
+                    </span>
+                    <span className={`text-xs ml-1 font-bold ${
+                      monthlySalesBrandFilter === 'helio' ? 'text-purple-200' : 'text-gray-500'
+                    }`}>
+                      Pcs
+                    </span>
+                  </div>
+                </div>
+                <div className={`mt-2.5 pt-2 border-t text-[11px] flex items-center justify-between font-medium ${
+                  monthlySalesBrandFilter === 'helio' ? 'border-purple-500/40 text-purple-100' : 'border-purple-100 text-purple-600'
+                }`}>
+                  <span>{monthlySalesBrandFilter === 'helio' ? '✓ ফিল্টার সক্রিয়' : 'ক্লিক করে হেলিও তালিকা দেখুন'}</span>
+                  <span>{monthlySalesBrandFilter === 'helio' ? 'Reset' : 'View'} →</span>
+                </div>
+              </button>
+
+              {/* Honor */}
+              <button
+                type="button"
+                onClick={() => setMonthlySalesBrandFilter(prev => prev === 'honor' ? 'all' : 'honor')}
+                className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between cursor-pointer relative ${
+                  monthlySalesBrandFilter === 'honor'
+                    ? 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-300'
+                    : 'bg-white hover:bg-sky-50/50 border-sky-200 text-gray-900 shadow-2xs hover:border-sky-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                    monthlySalesBrandFilter === 'honor'
+                      ? 'bg-sky-800 text-sky-100'
+                      : 'bg-sky-100 text-sky-700'
+                  }`}>
+                    Honor
+                  </span>
+                  <span className={`text-[11px] font-medium ${
+                    monthlySalesBrandFilter === 'honor' ? 'text-sky-200' : 'text-gray-500'
+                  }`}>
+                    অনার
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">Honor</h3>
+                    <p className={`text-xs mt-0.5 ${
+                      monthlySalesBrandFilter === 'honor' ? 'text-sky-100' : 'text-sky-700 font-bold'
+                    }`}>
+                      ৳{monthlyBrandBreakdown.honor.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-3xl font-black">
+                      {monthlyBrandBreakdown.honor.count}
+                    </span>
+                    <span className={`text-xs ml-1 font-bold ${
+                      monthlySalesBrandFilter === 'honor' ? 'text-sky-200' : 'text-gray-500'
+                    }`}>
+                      Pcs
+                    </span>
+                  </div>
+                </div>
+                <div className={`mt-2.5 pt-2 border-t text-[11px] flex items-center justify-between font-medium ${
+                  monthlySalesBrandFilter === 'honor' ? 'border-sky-500/40 text-sky-100' : 'border-sky-100 text-sky-600'
+                }`}>
+                  <span>{monthlySalesBrandFilter === 'honor' ? '✓ ফিল্টার সক্রিয়' : 'ক্লিক করে অনার তালিকা দেখুন'}</span>
+                  <span>{monthlySalesBrandFilter === 'honor' ? 'Reset' : 'View'} →</span>
+                </div>
+              </button>
+
+              {/* Others */}
+              <button
+                type="button"
+                onClick={() => setMonthlySalesBrandFilter(prev => prev === 'others' ? 'all' : 'others')}
+                className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between cursor-pointer relative ${
+                  monthlySalesBrandFilter === 'others'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-300'
+                    : 'bg-white hover:bg-amber-50/50 border-amber-200 text-gray-900 shadow-2xs hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                    monthlySalesBrandFilter === 'others'
+                      ? 'bg-amber-800 text-amber-100'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    Others
+                  </span>
+                  <span className={`text-[11px] font-medium ${
+                    monthlySalesBrandFilter === 'others' ? 'text-amber-200' : 'text-gray-500'
+                  }`}>
+                    অন্যান্য
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">Others</h3>
+                    <p className={`text-xs mt-0.5 ${
+                      monthlySalesBrandFilter === 'others' ? 'text-amber-100' : 'text-amber-800 font-bold'
+                    }`}>
+                      ৳{monthlyBrandBreakdown.others.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-3xl font-black">
+                      {monthlyBrandBreakdown.others.count}
+                    </span>
+                    <span className={`text-xs ml-1 font-bold ${
+                      monthlySalesBrandFilter === 'others' ? 'text-amber-200' : 'text-gray-500'
+                    }`}>
+                      Pcs
+                    </span>
+                  </div>
+                </div>
+                <div className={`mt-2.5 pt-2 border-t text-[11px] flex items-center justify-between font-medium ${
+                  monthlySalesBrandFilter === 'others' ? 'border-amber-500/40 text-amber-100' : 'border-amber-100 text-amber-700'
+                }`}>
+                  <span>{monthlySalesBrandFilter === 'others' ? '✓ ফিল্টার সক্রিয়' : 'অন্যান্য সব মডেল দেখুন'}</span>
+                  <span>{monthlySalesBrandFilter === 'others' ? 'Reset' : 'View'} →</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div className="max-h-[500px] overflow-y-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 text-gray-500 text-[10px] sm:text-xs font-black uppercase tracking-widest sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4">Model Number</th>
+                  <th className="px-6 py-4">Model & Brand</th>
                   <th className="px-6 py-4 text-right">Selling Price</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {currentMonthSales.length === 0 ? (
+                {displayedMonthlySales.length === 0 ? (
                   <tr>
                     <td colSpan={2} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Clock className="w-8 h-8 text-gray-300" />
-                        <p className="text-gray-400 italic">No sales recorded this month yet.</p>
+                        <p className="text-gray-400 italic">
+                          {monthlySalesBrandFilter === 'helio'
+                            ? 'No Helio sales recorded this month yet.'
+                            : monthlySalesBrandFilter === 'honor'
+                              ? 'No Honor sales recorded this month yet.'
+                              : monthlySalesBrandFilter === 'others'
+                                ? 'No other brand sales recorded this month yet.'
+                                : 'No sales recorded this month yet.'}
+                        </p>
+                        {monthlySalesBrandFilter !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setMonthlySalesBrandFilter('all')}
+                            className="mt-1 text-xs text-blue-600 font-bold hover:underline"
+                          >
+                            View All Monthly Sales
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  currentMonthSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-gray-50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2">
-                          <span>{sale.product_name}</span>
-                          {(sale.ram || sale.rom) && (
-                            <span className="text-[10px] font-medium text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
-                              {sale.ram}/{sale.rom}
+                  displayedMonthlySales.map((sale) => {
+                    const cat = getSaleBrandCategory(sale, products);
+                    return (
+                      <tr key={sale.id} className="hover:bg-gray-50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-2 flex-wrap">
+                            <span>{sale.product_name}</span>
+                            
+                            {/* Brand Category Tag */}
+                            {cat === 'helio' && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-purple-100 text-purple-700 border border-purple-200">
+                                Helio
+                              </span>
+                            )}
+                            {cat === 'honor' && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-sky-100 text-sky-700 border border-sky-200">
+                                Honor
+                              </span>
+                            )}
+                            {cat === 'others' && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-gray-100 text-gray-600 border border-gray-200">
+                                Others
+                              </span>
+                            )}
+
+                            {(sale.ram || sale.rom) && (
+                              <span className="text-[10px] font-medium text-gray-500 bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded">
+                                {sale.ram}/{sale.rom}
+                              </span>
+                            )}
+                            {sale.color && sale.color !== '' && (
+                              <div 
+                                className={`w-2.5 h-2.5 rounded-full shadow border-white border ${
+                                  sale.color === 'Black' ? 'bg-black' :
+                                  sale.color === 'Titanium Gray' ? 'bg-slate-500' :
+                                  sale.color === 'Blue' ? 'bg-blue-500' :
+                                  sale.color === 'Gold' ? 'bg-yellow-500' :
+                                  sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
+                                }`}
+                                title={sale.color}
+                              />
+                            )}
+                            {sale.quantity_sold && sale.quantity_sold > 1 && (
+                              <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">
+                                Qty: {sale.quantity_sold} Pcs
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+                              {format(parseISO(sale.sale_date), 'dd MMM')}
                             </span>
-                          )}
-                          {sale.color && sale.color !== '' && (
-                            <div 
-                              className={`w-2.5 h-2.5 rounded-full shadow border-white border ${
-                                sale.color === 'Black' ? 'bg-black' :
-                                sale.color === 'Titanium Gray' ? 'bg-slate-500' :
-                                sale.color === 'Blue' ? 'bg-blue-500' :
-                                sale.color === 'Gold' ? 'bg-yellow-500' :
-                                sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
-                              }`}
-                              title={sale.color}
-                            />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                            {format(parseISO(sale.sale_date), 'dd MMM')}
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              {format(parseISO(sale.sale_date), 'hh:mm a')}
+                            </span>
+                            {sale.customer_name && (
+                              <span className="text-[10px] text-gray-500">
+                                • {sale.customer_name}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-black text-emerald-600 text-lg">
+                            ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
                           </span>
-                          <span className="text-[10px] text-gray-400">
-                            {format(parseISO(sale.sale_date), 'hh:mm a')}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="font-black text-emerald-600 text-lg">
-                          ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -3790,6 +4114,31 @@ export default function App() {
             </div>
           </div>
 
+          {/* 3 Brand Breakdown in Monthly Report Sheet */}
+          <div className="no-print grid grid-cols-3 gap-3">
+            <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-700">Helio</span>
+                <p className="text-xs text-gray-500 font-medium">হেলিও</p>
+              </div>
+              <span className="text-xl font-black text-purple-900">{monthlyReportStats.helioCount} <span className="text-xs font-semibold text-gray-500">Pcs</span></span>
+            </div>
+            <div className="p-3 bg-sky-50/70 rounded-xl border border-sky-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-sky-700">Honor</span>
+                <p className="text-xs text-gray-500 font-medium">অনার</p>
+              </div>
+              <span className="text-xl font-black text-sky-900">{monthlyReportStats.honorCount} <span className="text-xs font-semibold text-gray-500">Pcs</span></span>
+            </div>
+            <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Others</span>
+                <p className="text-xs text-gray-500 font-medium">অন্যান্য</p>
+              </div>
+              <span className="text-xl font-black text-amber-900">{monthlyReportStats.othersCount} <span className="text-xs font-semibold text-gray-500">Pcs</span></span>
+            </div>
+          </div>
+
           {/* Printable Excel-Style Sheet Container */}
           <div id="printable-monthly-sheet" className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs">
             {/* Sheet Header (Visible in print and screen) */}
@@ -4086,6 +4435,22 @@ export default function App() {
                   <div>
                     <span className="block text-[10px] text-gray-500 uppercase font-bold">Total Profit</span>
                     <span className="font-black text-sm text-emerald-800">৳{monthlyReportStats.totalProfit.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Brand breakdown in Print sheet */}
+                <div className="mt-2 grid grid-cols-3 gap-2 border border-gray-300 bg-white p-2 rounded-sm text-center text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-purple-900 uppercase mr-1">Helio:</span>
+                    <span className="font-black text-gray-900">{monthlyReportStats.helioCount} Pcs</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-sky-900 uppercase mr-1">Honor:</span>
+                    <span className="font-black text-gray-900">{monthlyReportStats.honorCount} Pcs</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-900 uppercase mr-1">Others:</span>
+                    <span className="font-black text-gray-900">{monthlyReportStats.othersCount} Pcs</span>
                   </div>
                 </div>
               </div>

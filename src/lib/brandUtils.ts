@@ -130,6 +130,12 @@ export function groupProductsByBrand(products: Product[]): BrandStockSummary[] {
 
 export function getBrandBadgeStyle(brand: string): { bg: string; text: string; border: string; accent: string } {
   const b = brand.toLowerCase();
+  if (b.includes('helio')) {
+    return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', accent: 'bg-purple-600' };
+  }
+  if (b.includes('honor')) {
+    return { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', accent: 'bg-sky-600' };
+  }
   if (b.includes('samsung')) {
     return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', accent: 'bg-blue-600' };
   }
@@ -140,7 +146,7 @@ export function getBrandBadgeStyle(brand: string): { bg: string; text: string; b
     return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', accent: 'bg-orange-500' };
   }
   if (b.includes('vivo')) {
-    return { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', accent: 'bg-sky-600' };
+    return { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', accent: 'bg-cyan-600' };
   }
   if (b.includes('oppo')) {
     return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', accent: 'bg-emerald-600' };
@@ -162,3 +168,33 @@ export function getBrandBadgeStyle(brand: string): { bg: string; text: string; b
   }
   return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', accent: 'bg-gray-700' };
 }
+
+export type MonthlyBrandCategory = 'helio' | 'honor' | 'others';
+
+/**
+ * Categorizes a sale specifically into Helio, Honor, or Others
+ * as requested for monthly sales brand breakdown.
+ */
+export function getSaleBrandCategory(
+  sale: { product_name: string; product_id?: string },
+  products?: Product[]
+): MonthlyBrandCategory {
+  const saleName = (sale.product_name || '').toLowerCase();
+  const product = products?.find(p => p.id === sale.product_id);
+  const prodName = (product?.name || '').toLowerCase();
+  const prodBrand = (product?.brand || '').toLowerCase();
+
+  const combined = `${saleName} ${prodName} ${prodBrand}`;
+
+  // 1st Priority: Helio
+  if (combined.includes('helio')) {
+    return 'helio';
+  }
+  // 2nd Priority: Honor
+  if (combined.includes('honor')) {
+    return 'honor';
+  }
+  // 3rd: Others
+  return 'others';
+}
+
