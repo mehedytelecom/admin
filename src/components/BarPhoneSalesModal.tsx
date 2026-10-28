@@ -41,12 +41,18 @@ export const BarPhoneSalesModal: React.FC<BarPhoneSalesModalProps> = ({
   }, [sales, products]);
 
   const getSaleProfit = (s: Sale) => {
+    if (s.profit !== undefined && s.profit !== null && !Number.isNaN(Number(s.profit))) {
+      return Number(s.profit);
+    }
+    if (s.actual_sale_price !== undefined && s.purchase_price !== undefined) {
+      return Number(s.actual_sale_price) - Number(s.purchase_price);
+    }
     const matchedProd = products.find(p => p.id === s.product_id);
     if (matchedProd) {
       const salePrice = Number(s.actual_sale_price) || Number(matchedProd.selling_price) || 0;
       return salePrice - Number(matchedProd.purchase_price || 0);
     }
-    return Number(s.profit) || 0;
+    return 0;
   };
 
   // Overall Statistics for Bar Phone Sales

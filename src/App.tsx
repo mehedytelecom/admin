@@ -767,16 +767,31 @@ export default function App() {
     }
   };
 
-  // Summary Stats
+  // Summary Stats - Always prioritize the sale's own stored price/profit snapshot so editing product prices later never alters past sales
   const calculateDynamicProfit = useCallback((sale: Sale) => {
+    if (sale.profit !== undefined && sale.profit !== null && !Number.isNaN(Number(sale.profit))) {
+      return Number(sale.profit);
+    }
+    if (sale.actual_sale_price !== undefined && sale.purchase_price !== undefined) {
+      return Number(sale.actual_sale_price) - Number(sale.purchase_price);
+    }
     const product = products.find(p => p.id === sale.product_id);
     if (product) {
-      // If it's a cash sale or has actual_sale_price, use that.
-      // Otherwise use product's current selling price.
       const sellingPrice = sale.actual_sale_price || product.selling_price;
       return sellingPrice - product.purchase_price;
     }
-    return sale.profit || 0; // Fallback to stored profit
+    return 0;
+  }, [products]);
+
+  const calculateSalePrice = useCallback((sale: Sale) => {
+    if (sale.actual_sale_price !== undefined && sale.actual_sale_price !== null && Number(sale.actual_sale_price) > 0) {
+      return Number(sale.actual_sale_price);
+    }
+    if (sale.purchase_price !== undefined && sale.profit !== undefined) {
+      return Number(sale.purchase_price) + Number(sale.profit);
+    }
+    const product = products.find(p => p.id === sale.product_id);
+    return product?.selling_price || 0;
   }, [products]);
 
   const currentMonthSales = useMemo(() => {
@@ -795,11 +810,9 @@ export default function App() {
 
   const currentMonthTotal = useMemo(() => {
     return currentMonthSales.reduce((acc, s) => {
-      if (s.actual_sale_price) return acc + s.actual_sale_price;
-      const product = products.find(p => p.id === s.product_id);
-      return acc + (product?.selling_price || ((s.profit || 0) + (s.purchase_price || 0)) || 0);
+      return acc + calculateSalePrice(s);
     }, 0);
-  }, [currentMonthSales, products]);
+  }, [currentMonthSales, calculateSalePrice]);
 
   // 3 Dedicated Counters for Monthly Sales List: 1st Helio, 2nd Honor, 3rd Others
   const monthlyBrandBreakdown = useMemo(() => {
@@ -813,10 +826,7 @@ export default function App() {
     currentMonthSales.forEach(s => {
       const cat = getSaleBrandCategory(s, products);
       const qty = Number(s.quantity_sold) || 1;
-      const price = s.actual_sale_price || (() => {
-        const prod = products.find(p => p.id === s.product_id);
-        return prod?.selling_price || ((s.profit || 0) + (s.purchase_price || 0)) || 0;
-      })();
+      const price = calculateSalePrice(s);
 
       if (cat === 'helio') {
         helioCount += qty;
@@ -836,7 +846,7 @@ export default function App() {
       others: { count: othersCount, amount: othersAmount },
       totalCount: helioCount + honorCount + othersCount
     };
-  }, [currentMonthSales, products]);
+  }, [currentMonthSales, products, calculateSalePrice]);
 
   const displayedMonthlySales = useMemo(() => {
     if (monthlySalesBrandFilter === 'all') return currentMonthSales;
@@ -1295,6 +1305,10 @@ export default function App() {
         ? remainingUnits.length
         : Math.max(0, (product.quantity || 1) - 1);
 
+      const unitPurchasePrice = Number(product.purchase_price) || 0;
+      const unitSellingPrice = Number(product.selling_price) || 0;
+      const saleProfit = unitSellingPrice - unitPurchasePrice;
+
       await addDoc(collection(db, 'sales'), {
         customer_name: newSale.customer_name,
         phone_number: newSale.phone_number,
@@ -1311,8 +1325,9 @@ export default function App() {
         rom: product.rom || '',
         image_file_ids: imageFileIds,
         sale_date: new Date(newSale.sale_date).toISOString(),
-        profit: product.profit_margin,
-        actual_sale_price: product.selling_price,
+        profit: saleProfit,
+        actual_sale_price: unitSellingPrice,
+        purchase_price: unitPurchasePrice,
         is_bar_phone: Boolean(product.is_bar_phone),
         is_accessory: Boolean(product.is_accessory)
       });
@@ -1366,8 +1381,9 @@ export default function App() {
         return;
       }
 
+      const unitPurchasePrice = Number(product.purchase_price) || 0;
       const actualPrice = Number(cashSale.actual_sale_price);
-      const profit = actualPrice - product.purchase_price;
+      const profit = actualPrice - unitPurchasePrice;
 
       const soldImei = (cashSale.imei || '').trim();
       const matchedUnit = product.imei_units?.find(u => u.imei1 === soldImei || u.imei2 === soldImei);
@@ -1401,6 +1417,7 @@ export default function App() {
         sale_date: new Date(cashSale.sale_date).toISOString(),
         profit: profit,
         actual_sale_price: actualPrice,
+        purchase_price: unitPurchasePrice,
         is_cash_sale: true,
         is_bar_phone: Boolean(product.is_bar_phone),
         is_accessory: Boolean(product.is_accessory)
@@ -1668,11 +1685,13 @@ export default function App() {
 
     const rows = reportSales.map((s, idx) => {
       const product = products.find(p => p.id === s.product_id);
-      const retailPrice = (s.purchase_price !== undefined && s.purchase_price !== null)
-        ? s.purchase_price
-        : (product?.purchase_price ?? Math.max(0, (s.actual_sale_price || 0) - s.profit));
-      const mrp = s.actual_sale_price ?? product?.selling_price ?? 0;
       const profit = calculateDynamicProfit(s);
+      const mrp = calculateSalePrice(s);
+      const retailPrice = (s.purchase_price !== undefined && s.purchase_price !== null)
+        ? Number(s.purchase_price)
+        : ((mrp > 0 && s.profit !== undefined && s.profit !== null)
+            ? Math.max(0, mrp - Number(s.profit))
+            : (product?.purchase_price ?? 0));
       const cat = getSaleBrandCategory(s, products);
       const qty = Number(s.quantity_sold) || 1;
 
@@ -1716,7 +1735,7 @@ export default function App() {
       rows,
       reportSales 
     };
-  }, [sales, products, reportStartDate, reportEndDate, calculateDynamicProfit]);
+  }, [sales, products, reportStartDate, reportEndDate, calculateDynamicProfit, calculateSalePrice]);
 
   const handleExportMonthlyCSV = () => {
     if (!monthlyReportStats.rows.length) {
@@ -2622,7 +2641,7 @@ export default function App() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className="font-black text-emerald-600 text-lg">
-                            ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
+                            ৳{calculateSalePrice(sale).toLocaleString()}
                           </span>
                         </td>
                       </tr>
@@ -5330,7 +5349,7 @@ export default function App() {
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-sm font-black text-emerald-600">
-                      ৳{(sale.actual_sale_price || products.find(p => p.id === sale.product_id)?.selling_price || 0).toLocaleString()}
+                      ৳{calculateSalePrice(sale).toLocaleString()}
                     </p>
                     <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
                       {format(parseISO(sale.sale_date), 'dd/MM/yyyy')}
@@ -5442,7 +5461,7 @@ export default function App() {
                     <div>
                       <p className="text-xs text-gray-500">Selling Price</p>
                       <p className="font-black text-emerald-600 text-lg">
-                        ৳{(selectedSale.actual_sale_price || products.find(p => p.id === selectedSale.product_id)?.selling_price || 0).toLocaleString()}
+                        ৳{calculateSalePrice(selectedSale).toLocaleString()}
                       </p>
                     </div>
                   </div>
