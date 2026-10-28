@@ -171,6 +171,39 @@ export function getBrandBadgeStyle(brand: string): { bg: string; text: string; b
 
 export type MonthlyBrandCategory = 'helio' | 'honor' | 'others';
 
+export function isBarPhoneSale(
+  sale: { is_bar_phone?: boolean; is_accessory?: boolean; product_id?: string; product_name?: string },
+  products?: Product[]
+): boolean {
+  if (sale.is_accessory) return false;
+  if (sale.is_bar_phone) return true;
+  if (products && sale.product_id) {
+    const matched = products.find(p => p.id === sale.product_id);
+    if (matched && matched.is_bar_phone) return true;
+  }
+  const name = (sale.product_name || '').toLowerCase();
+  return name.includes('bar phone') || name.includes('button') || name.includes('বাটন');
+}
+
+export function isAccessorySale(
+  sale: { is_accessory?: boolean; product_id?: string },
+  products?: Product[]
+): boolean {
+  if (sale.is_accessory) return true;
+  if (products && sale.product_id) {
+    const matched = products.find(p => p.id === sale.product_id);
+    if (matched && matched.is_accessory) return true;
+  }
+  return false;
+}
+
+export function isSmartphoneSale(
+  sale: { is_bar_phone?: boolean; is_accessory?: boolean; product_id?: string; product_name?: string },
+  products?: Product[]
+): boolean {
+  return !isBarPhoneSale(sale, products) && !isAccessorySale(sale, products);
+}
+
 /**
  * Categorizes a sale specifically into Helio, Honor, or Others
  * as requested for monthly sales brand breakdown.

@@ -76,9 +76,11 @@ import { BrandStockModal } from './components/BrandStockModal';
 import { UsedMobileModal } from './components/UsedMobileModal';
 import { ProductSummaryModal } from './components/ProductSummaryModal';
 import { BarPhoneModal } from './components/BarPhoneModal';
+import { BarPhoneSalesModal } from './components/BarPhoneSalesModal';
 import { AccessoriesModal } from './components/AccessoriesModal';
 import { ColorSelector, DEFAULT_POPULAR_COLORS } from './components/ColorSelector';
-import { getSaleBrandCategory, MonthlyBrandCategory } from './lib/brandUtils';
+import { ProductSelectCombobox } from './components/ProductSelectCombobox';
+import { getSaleBrandCategory, MonthlyBrandCategory, isBarPhoneSale, isAccessorySale, isSmartphoneSale } from './lib/brandUtils';
 
 // --- Components ---
 
@@ -403,6 +405,8 @@ export default function App() {
   const [isUsedMobileModalOpen, setIsUsedMobileModalOpen] = useState(false);
   const [isProductSummaryOpen, setIsProductSummaryOpen] = useState(false);
   const [isBarPhoneModalOpen, setIsBarPhoneModalOpen] = useState(false);
+  const [isBarPhoneSalesModalOpen, setIsBarPhoneSalesModalOpen] = useState(false);
+  const [saleCategoryFilter, setSaleCategoryFilter] = useState<'all' | 'smartphone' | 'bar_phone' | 'accessory'>('all');
   const [isAccessoriesModalOpen, setIsAccessoriesModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isClearStockModalOpen, setIsClearStockModalOpen] = useState(false);
@@ -515,6 +519,7 @@ export default function App() {
   const [newSale, setNewSale] = useState({
     customer_name: '',
     phone_number: '',
+    application_id: '',
     nid_number: '',
     address: '',
     guarantor_number: '',
@@ -693,9 +698,16 @@ export default function App() {
   const currentMonthSales = useMemo(() => {
     const now = new Date();
     return sales
-      .filter(s => isSameMonth(parseISO(s.sale_date), now))
+      .filter(s => {
+        try {
+          if (!isSameMonth(parseISO(s.sale_date), now)) return false;
+        } catch {
+          return false;
+        }
+        return isSmartphoneSale(s, products);
+      })
       .sort((a, b) => parseISO(b.sale_date).getTime() - parseISO(a.sale_date).getTime());
-  }, [sales]);
+  }, [sales, products]);
 
   const currentMonthTotal = useMemo(() => {
     return currentMonthSales.reduce((acc, s) => {
@@ -748,9 +760,24 @@ export default function App() {
   }, [currentMonthSales, monthlySalesBrandFilter, products]);
 
   const stats = useMemo(() => {
-    const todaySales = sales.filter(s => isToday(parseISO(s.sale_date)));
-    const monthlySales = sales.filter(s => isSameMonth(parseISO(s.sale_date), new Date()));
+    const todaySales = sales.filter(s => {
+      try {
+        return isToday(parseISO(s.sale_date)) && isSmartphoneSale(s, products);
+      } catch {
+        return false;
+      }
+    });
+    const monthlySales = sales.filter(s => {
+      try {
+        return isSameMonth(parseISO(s.sale_date), new Date()) && isSmartphoneSale(s, products);
+      } catch {
+        return false;
+      }
+    });
     
+    const todaySoldQuantity = todaySales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+    const monthlySoldQuantity = monthlySales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+
     const todayProfit = todaySales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
     const monthlyProfit = monthlySales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
     
@@ -771,16 +798,49 @@ export default function App() {
     const barQuantity = barProducts.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
     const barProductsCount = barProducts.length;
 
+    // Bar Phone Sales & Profit
+    const barPhoneSales = sales.filter(s => isBarPhoneSale(s, products));
+    const barPhoneSoldQuantity = barPhoneSales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+    const monthlyBarPhoneSales = barPhoneSales.filter(s => {
+      try {
+        return isSameMonth(parseISO(s.sale_date), new Date());
+      } catch {
+        return false;
+      }
+    });
+    const monthlyBarPhoneSoldQuantity = monthlyBarPhoneSales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+    const barPhoneProfit = barPhoneSales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
+    const monthlyBarPhoneProfit = monthlyBarPhoneSales.reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
+    const todayBarPhoneProfit = barPhoneSales.filter(s => {
+      try {
+        return isToday(parseISO(s.sale_date));
+      } catch {
+        return false;
+      }
+    }).reduce((acc, s) => acc + calculateDynamicProfit(s), 0);
+
     const accessoryProducts = products.filter(p => p.is_accessory);
     const accessoryQuantity = accessoryProducts.reduce((acc, p) => acc + (Number(p.quantity) || 0), 0);
     const accessoryProductsCount = accessoryProducts.length;
 
+    // Accessory Sales
+    const accessorySales = sales.filter(s => isAccessorySale(s, products));
+    const accessorySoldQuantity = accessorySales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+    const monthlyAccessorySales = accessorySales.filter(s => {
+      try {
+        return isSameMonth(parseISO(s.sale_date), new Date());
+      } catch {
+        return false;
+      }
+    });
+    const monthlyAccessorySoldQuantity = monthlyAccessorySales.reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0);
+
     const brandNewQuantity = products.filter(p => (p.condition || 'new') === 'new' && !p.is_bar_phone && !p.is_accessory).reduce((acc, p) => acc + p.quantity, 0);
 
     return {
-      todayCount: todaySales.length,
+      todayCount: todaySoldQuantity,
       todayProfit,
-      monthlyCount: monthlySales.length,
+      monthlyCount: monthlySoldQuantity,
       monthlyProfit,
       monthlyTotalSale: currentMonthTotal,
       totalProducts: products.length,
@@ -790,8 +850,15 @@ export default function App() {
       usedProductsCount,
       barQuantity,
       barProductsCount,
+      barPhoneSoldQuantity,
+      monthlyBarPhoneSoldQuantity,
+      barPhoneProfit,
+      monthlyBarPhoneProfit,
+      todayBarPhoneProfit,
       accessoryQuantity,
       accessoryProductsCount,
+      accessorySoldQuantity,
+      monthlyAccessorySoldQuantity,
       mobileBazarTotal
     };
   }, [sales, products, mobileBazarRecords, currentMonthTotal, calculateDynamicProfit]);
@@ -871,6 +938,7 @@ export default function App() {
     await addDoc(collection(db, 'sales'), {
       customer_name: data.customerName || 'Cash Sale',
       phone_number: data.phoneNumber || 'N/A',
+      application_id: 'N/A',
       nid_number: 'N/A',
       address: 'N/A',
       guarantor_number: 'N/A',
@@ -1146,7 +1214,8 @@ export default function App() {
       await addDoc(collection(db, 'sales'), {
         customer_name: newSale.customer_name,
         phone_number: newSale.phone_number,
-        nid_number: newSale.nid_number,
+        application_id: newSale.application_id || newSale.nid_number || '',
+        nid_number: newSale.application_id || newSale.nid_number || '',
         address: newSale.address,
         guarantor_number: newSale.guarantor_number,
         product_id: product.id,
@@ -1159,7 +1228,9 @@ export default function App() {
         image_file_ids: imageFileIds,
         sale_date: new Date(newSale.sale_date).toISOString(),
         profit: product.profit_margin,
-        actual_sale_price: product.selling_price
+        actual_sale_price: product.selling_price,
+        is_bar_phone: Boolean(product.is_bar_phone),
+        is_accessory: Boolean(product.is_accessory)
       });
 
       // 3. Decrease stock
@@ -1174,10 +1245,13 @@ export default function App() {
       setNewSale({
         customer_name: '',
         phone_number: '',
+        application_id: '',
         nid_number: '',
         address: '',
         guarantor_number: '',
         product_id: '',
+        imei: '',
+        color: '',
         images: [],
         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
       });
@@ -1228,6 +1302,7 @@ export default function App() {
       await addDoc(collection(db, 'sales'), {
         customer_name: 'Cash Sale',
         phone_number: 'N/A',
+        application_id: 'N/A',
         nid_number: 'N/A',
         address: 'N/A',
         guarantor_number: 'N/A',
@@ -1242,7 +1317,9 @@ export default function App() {
         sale_date: new Date(cashSale.sale_date).toISOString(),
         profit: profit,
         actual_sale_price: actualPrice,
-        is_cash_sale: true
+        is_cash_sale: true,
+        is_bar_phone: Boolean(product.is_bar_phone),
+        is_accessory: Boolean(product.is_accessory)
       });
 
       const stockUpdate: any = {
@@ -1329,7 +1406,8 @@ export default function App() {
       await updateDoc(doc(db, 'sales', editingSale.id), {
         customer_name: editingSale.customer_name,
         phone_number: editingSale.phone_number,
-        nid_number: editingSale.nid_number,
+        application_id: editingSale.application_id || editingSale.nid_number || '',
+        nid_number: editingSale.application_id || editingSale.nid_number || '',
         address: editingSale.address,
         guarantor_number: editingSale.guarantor_number,
         profit: Number(editingSale.profit),
@@ -1464,19 +1542,37 @@ export default function App() {
   }, [sortedProducts, productConditionFilter, productSearch]);
 
   const filteredSales = useMemo(() => {
-    if (!saleSearch) return sales;
+    let result = sales;
+
+    // Filter by Category
+    if (saleCategoryFilter === 'bar_phone') {
+      result = result.filter(s => isBarPhoneSale(s, products));
+    } else if (saleCategoryFilter === 'smartphone') {
+      result = result.filter(s => isSmartphoneSale(s, products));
+    } else if (saleCategoryFilter === 'accessory') {
+      result = result.filter(s => isAccessorySale(s, products));
+    }
+
+    if (!saleSearch) return result;
     const search = saleSearch.toLowerCase();
-    return sales.filter(s => 
+    return result.filter(s => 
       s.customer_name.toLowerCase().includes(search) ||
       s.phone_number.includes(search) ||
-      s.nid_number.includes(search)
+      (s.product_name && s.product_name.toLowerCase().includes(search)) ||
+      (s.imei && s.imei.toLowerCase().includes(search)) ||
+      (s.application_id && s.application_id.toLowerCase().includes(search)) ||
+      (s.nid_number && s.nid_number.toLowerCase().includes(search))
     );
-  }, [sales, saleSearch]);
+  }, [sales, saleSearch, saleCategoryFilter, products]);
 
   const monthlyReportStats = useMemo(() => {
     const reportSales = sales.filter(s => {
-      const date = format(parseISO(s.sale_date), 'yyyy-MM-dd');
-      return date >= reportStartDate && date <= reportEndDate;
+      try {
+        const date = format(parseISO(s.sale_date), 'yyyy-MM-dd');
+        return date >= reportStartDate && date <= reportEndDate && isSmartphoneSale(s, products);
+      } catch {
+        return false;
+      }
     }).sort((a, b) => parseISO(a.sale_date).getTime() - parseISO(b.sale_date).getTime());
 
     let totalRetailPrice = 0;
@@ -1898,6 +1994,7 @@ export default function App() {
                       setNewSale({
                         customer_name: '',
                         phone_number: '',
+                        application_id: '',
                         nid_number: '',
                         address: '',
                         guarantor_number: '',
@@ -1925,13 +2022,13 @@ export default function App() {
               )}
               <button 
                 onClick={() => setIsSaleListOpen(true)}
-                className="flex items-center justify-center gap-2 py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100"
+                className="flex items-center justify-center gap-2 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100"
               >
                 <List className="w-5 h-5" /> Sale List
               </button>
               <button 
                 onClick={() => setIsMonthlyReportOpen(true)}
-                className="flex items-center justify-center gap-2 py-4 bg-gray-800 hover:bg-black text-white font-bold rounded-xl transition-all shadow-lg shadow-gray-200"
+                className="flex items-center justify-center gap-2 py-3.5 bg-gray-800 hover:bg-black text-white font-bold rounded-xl transition-all shadow-lg shadow-gray-200"
               >
                 <BarChart3 className="w-5 h-5" /> Monthly Report
               </button>
@@ -1960,7 +2057,7 @@ export default function App() {
                 subtitleClass="text-amber-800 bg-amber-50 border-amber-200"
                 onClick={() => setIsUsedMobileModalOpen(true)}
               />
-              {/* 3. Bar Phone */}
+              {/* 3. Bar Phone (Stock) */}
               <SummaryItem 
                 icon={Smartphone} 
                 label="Bar Phone" 
@@ -1971,14 +2068,36 @@ export default function App() {
                 subtitleClass="text-blue-800 bg-blue-50 border-blue-200"
                 onClick={() => setIsBarPhoneModalOpen(true)}
               />
-              {/* Accessories */}
+              {/* Bar Phone Sales (Dedicated Box) */}
+              <SummaryItem 
+                icon={Smartphone} 
+                label="Bar Phone Sales" 
+                value={stats.barPhoneSoldQuantity} 
+                suffix=" Pcs"
+                colorClass="bg-cyan-600" 
+                subtitle={`Sale List (${stats.monthlyBarPhoneSoldQuantity} this month)`}
+                subtitleClass="text-cyan-800 bg-cyan-50 border-cyan-200"
+                onClick={() => setIsBarPhoneSalesModalOpen(true)}
+              />
+              {/* Bar Phone Profit (Dedicated Box) */}
+              <SummaryItem 
+                symbol="৳" 
+                label="Bar Phone Profit" 
+                value={stats.barPhoneProfit} 
+                prefix="৳"
+                colorClass="bg-emerald-600" 
+                subtitle={`৳${stats.monthlyBarPhoneProfit.toLocaleString()} this month`}
+                subtitleClass="text-emerald-800 bg-emerald-50 border-emerald-200"
+                onClick={() => setIsBarPhoneSalesModalOpen(true)}
+              />
+              {/* Accessories Sold (Changed from stock to sold count) */}
               <SummaryItem 
                 icon={Headphones} 
-                label="Accessories" 
-                value={stats.accessoryQuantity} 
+                label="Accessories Sold" 
+                value={stats.accessorySoldQuantity} 
                 suffix=" Pcs"
                 colorClass="bg-teal-600" 
-                subtitle={`${stats.accessoryProductsCount} Items`}
+                subtitle={`${stats.monthlyAccessorySoldQuantity} Pcs this month`}
                 subtitleClass="text-teal-800 bg-teal-50 border-teal-200"
                 onClick={() => setIsAccessoriesModalOpen(true)}
               />
@@ -2006,6 +2125,7 @@ export default function App() {
                 icon={Calendar} 
                 label="Today Sale" 
                 value={stats.todayCount} 
+                suffix=" Pcs"
                 colorClass="bg-blue-500" 
               />
               {/* 7. Today Profit */}
@@ -2016,12 +2136,15 @@ export default function App() {
                 prefix="৳"
                 colorClass="bg-emerald-500" 
               />
-              {/* 8. Monthly Sale */}
+              {/* 8. Monthly Sale (Smartphones Only) */}
               <SummaryItem 
                 icon={TrendingUp} 
                 label="Monthly Sale" 
                 value={stats.monthlyCount} 
+                suffix=" Pcs"
                 colorClass="bg-purple-500" 
+                subtitle="Smartphones"
+                subtitleClass="text-purple-700 bg-purple-50 border-purple-200"
               />
               {/* 9. Monthly Profit */}
               <SummaryItem 
@@ -2046,12 +2169,12 @@ export default function App() {
                 Monthly Sales List ({format(new Date(), 'MMMM yyyy')})
               </h2>
               <p className="text-xs text-gray-500 mt-1">
-                চলতি মাসের ব্র্যান্ডভিত্তিক সেলস কাউন্টার এবং বিক্রয় তালিকা
+                চলতি মাসের স্মার্টফোন বিক্রয় কাউন্টার ও তালিকা (বাটন ফোন ও এক্সেসরিজ ব্যতীত)
               </p>
             </div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <div className="px-3.5 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold border border-blue-100">
-                Total Sold: <span className="text-sm font-black">{monthlyBrandBreakdown.totalCount}</span> Pcs
+                Smartphones Sold: <span className="text-sm font-black">{monthlyBrandBreakdown.totalCount}</span> Pcs
               </div>
               <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">
                 Total Value: <span className="text-sm font-black">৳{currentMonthTotal.toLocaleString()}</span>
@@ -3287,6 +3410,7 @@ export default function App() {
                         setNewSale(prev => ({
                           customer_name: '',
                           phone_number: '',
+                          application_id: '',
                           nid_number: '',
                           address: '',
                           guarantor_number: '',
@@ -3310,6 +3434,7 @@ export default function App() {
                           setNewSale(prev => ({
                             customer_name: '',
                             phone_number: '',
+                            application_id: '',
                             nid_number: '',
                             address: '',
                             guarantor_number: '',
@@ -3340,6 +3465,7 @@ export default function App() {
                             setNewSale(prev => ({
                               customer_name: '',
                               phone_number: '',
+                              application_id: '',
                               nid_number: '',
                               address: '',
                               guarantor_number: '',
@@ -3359,6 +3485,7 @@ export default function App() {
                           setNewSale(prev => ({
                             customer_name: '',
                             phone_number: '',
+                            application_id: '',
                             nid_number: '',
                             address: '',
                             guarantor_number: '',
@@ -3394,6 +3521,7 @@ export default function App() {
                         setNewSale(prev => ({
                           customer_name: '',
                           phone_number: '',
+                          application_id: '',
                           nid_number: '',
                           address: '',
                           guarantor_number: '',
@@ -3412,54 +3540,44 @@ export default function App() {
                 )}
               </div>
 
-              {/* Select Product Dropdown */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)
-                </label>
-                <select 
-                  required
-                  value={newSale.product_id}
-                  onChange={e => {
-                    const selectedId = e.target.value;
-                    if (!selectedId) {
-                      setSaleImeiInput('');
-                      setNewSale(prev => ({
-                        customer_name: '',
-                        phone_number: '',
-                        nid_number: '',
-                        address: '',
-                        guarantor_number: '',
-                        product_id: '',
-                        imei: '',
-                        color: '',
-                        images: [],
-                        sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                      }));
-                      return;
-                    }
-                    const matchedProd = products.find(p => p.id === selectedId);
-                    const selectedImei = matchedProd?.imeis?.includes(saleImeiInput.trim())
-                      ? saleImeiInput.trim()
-                      : (matchedProd?.imeis?.[0] || '');
-                    setSaleImeiInput(selectedImei);
+              {/* Searchable Product Combobox */}
+              <ProductSelectCombobox
+                products={sortedProducts}
+                selectedProductId={newSale.product_id}
+                onSelect={(selectedId) => {
+                  if (!selectedId) {
+                    setSaleImeiInput('');
                     setNewSale(prev => ({
-                      ...prev,
-                      product_id: selectedId,
-                      imei: selectedImei,
-                      color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || ''
+                      customer_name: '',
+                      phone_number: '',
+                      application_id: '',
+                      nid_number: '',
+                      address: '',
+                      guarantor_number: '',
+                      product_id: '',
+                      imei: '',
+                      color: '',
+                      images: [],
+                      sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                     }));
-                  }}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm font-medium"
-                >
-                  <option value="">Choose a product from inventory...</option>
-                  {sortedProducts.map(p => (
-                    <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                      {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    return;
+                  }
+                  const matchedProd = products.find(p => p.id === selectedId);
+                  const selectedImei = matchedProd?.imeis?.includes(saleImeiInput.trim())
+                    ? saleImeiInput.trim()
+                    : (matchedProd?.imeis?.[0] || '');
+                  setSaleImeiInput(selectedImei);
+                  setNewSale(prev => ({
+                    ...prev,
+                    product_id: selectedId,
+                    imei: selectedImei,
+                    color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || ''
+                  }));
+                }}
+                accentColor="blue"
+                label="Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)"
+                required
+              />
 
               {/* Product Preview Card */}
               {newSale.product_id && (
@@ -3558,13 +3676,13 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">NID Number</label>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Application ID</label>
                       <input 
                         required
                         type="text"
-                        value={newSale.nid_number}
-                        onChange={e => setNewSale({...newSale, nid_number: e.target.value})}
-                        placeholder="জাতীয় পরিচয়পত্র নম্বর"
+                        value={newSale.application_id || newSale.nid_number}
+                        onChange={e => setNewSale({...newSale, application_id: e.target.value, nid_number: e.target.value})}
+                        placeholder="অ্যাপ্লিকেশন আইডি লিখুন"
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
@@ -3787,50 +3905,39 @@ export default function App() {
                 )}
               </div>
 
-              {/* Select Product Dropdown */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)
-                </label>
-                <select 
-                  required
-                  value={cashSale.product_id}
-                  onChange={e => {
-                    const selectedId = e.target.value;
-                    if (!selectedId) {
-                      setCashImeiInput('');
-                      setCashSale(prev => ({
-                        product_id: '',
-                        imei: '',
-                        color: '',
-                        actual_sale_price: '',
-                        sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                      }));
-                      return;
-                    }
-                    const matchedProd = products.find(p => p.id === selectedId);
-                    const selectedImei = matchedProd?.imeis?.includes(cashImeiInput.trim())
-                      ? cashImeiInput.trim()
-                      : (matchedProd?.imeis?.[0] || '');
-                    setCashImeiInput(selectedImei);
+              {/* Searchable Product Combobox */}
+              <ProductSelectCombobox
+                products={sortedProducts}
+                selectedProductId={cashSale.product_id}
+                onSelect={(selectedId) => {
+                  if (!selectedId) {
+                    setCashImeiInput('');
                     setCashSale(prev => ({
-                      ...prev,
-                      product_id: selectedId,
-                      imei: selectedImei,
-                      color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
-                      actual_sale_price: matchedProd ? String(matchedProd.selling_price) : ''
+                      product_id: '',
+                      imei: '',
+                      color: '',
+                      actual_sale_price: '',
+                      sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                     }));
-                  }}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm font-medium"
-                >
-                  <option value="">Choose a product from inventory...</option>
-                  {sortedProducts.map(p => (
-                    <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                      {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} - {p.quantity > 0 ? `Stock: ${p.quantity}` : 'Out of Stock'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    return;
+                  }
+                  const matchedProd = products.find(p => p.id === selectedId);
+                  const selectedImei = matchedProd?.imeis?.includes(cashImeiInput.trim())
+                    ? cashImeiInput.trim()
+                    : (matchedProd?.imeis?.[0] || '');
+                  setCashImeiInput(selectedImei);
+                  setCashSale(prev => ({
+                    ...prev,
+                    product_id: selectedId,
+                    imei: selectedImei,
+                    color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
+                    actual_sale_price: matchedProd ? String(matchedProd.selling_price) : ''
+                  }));
+                }}
+                accentColor="emerald"
+                label="Or Select Product from Stock List (তালিকা থেকে পছন্দ করুন)"
+                required
+              />
 
               {/* Product Preview Card */}
               {cashSale.product_id && (
@@ -4680,6 +4787,19 @@ export default function App() {
             setIsSaleProductOpen(true);
           }
         }}
+        onOpenSales={() => {
+          setIsBarPhoneModalOpen(false);
+          setIsBarPhoneSalesModalOpen(true);
+        }}
+      />
+
+      {/* Dedicated Bar Phone Sales Modal */}
+      <BarPhoneSalesModal
+        isOpen={isBarPhoneSalesModalOpen}
+        onClose={() => setIsBarPhoneSalesModalOpen(false)}
+        sales={sales}
+        products={products}
+        onSelectSale={(sale) => setSelectedSale(sale)}
       />
 
       {/* Accessories Modal */}
@@ -4976,14 +5096,62 @@ export default function App() {
         onClose={() => setIsSaleListOpen(false)} 
         title="All Sales History"
       >
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSaleCategoryFilter('all')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                saleCategoryFilter === 'all'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Sales ({sales.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaleCategoryFilter('smartphone')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                saleCategoryFilter === 'smartphone'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              Smartphones ({sales.filter(s => isSmartphoneSale(s, products)).reduce((acc, s) => acc + (Number(s.quantity_sold) || 1), 0)})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaleCategoryFilter('bar_phone')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                saleCategoryFilter === 'bar_phone'
+                  ? 'bg-cyan-600 text-white shadow-2xs'
+                  : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100 border border-cyan-200'
+              }`}
+            >
+              Bar Phone Sales (বার ফোন) ({stats.barPhoneSoldQuantity})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaleCategoryFilter('accessory')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                saleCategoryFilter === 'accessory'
+                  ? 'bg-teal-600 text-white shadow-2xs'
+                  : 'bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200'
+              }`}
+            >
+              Accessories ({stats.accessorySoldQuantity})
+            </button>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
               type="text"
               value={saleSearch}
               onChange={e => setSaleSearch(e.target.value)}
-              placeholder="Search by name, phone, or NID..."
+              placeholder="Search by name, phone, or Application ID..."
               className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -4998,7 +5166,19 @@ export default function App() {
                 <div className="flex items-center gap-4">
                   <CustomerAvatar fileId={sale.image_file_ids?.[0]} />
                   <div className="text-left">
-                    <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
+                      {isBarPhoneSale(sale, products) && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 border border-cyan-200">
+                          Bar Phone
+                        </span>
+                      )}
+                      {isAccessorySale(sale, products) && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200">
+                          Accessory
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-500">{sale.phone_number}</p>
                     <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1">
                       <span>{sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''}</span>
@@ -5072,10 +5252,10 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CreditCard className="w-5 h-5 text-blue-500 mt-0.5" />
+                    <FileText className="w-5 h-5 text-blue-500 mt-0.5" />
                     <div>
-                      <p className="text-xs text-gray-500">NID Number</p>
-                      <p className="font-bold text-gray-900">{selectedSale.nid_number}</p>
+                      <p className="text-xs text-gray-500">Application ID</p>
+                      <p className="font-bold text-gray-900">{selectedSale.application_id || selectedSale.nid_number || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -5239,12 +5419,13 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">NID</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Application ID</label>
                 <input 
                   required
                   type="text"
-                  value={editingSale.nid_number}
-                  onChange={e => setEditingSale({...editingSale, nid_number: e.target.value})}
+                  value={editingSale.application_id || editingSale.nid_number || ''}
+                  onChange={e => setEditingSale({...editingSale, application_id: e.target.value, nid_number: e.target.value})}
+                  placeholder="Application ID"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -5513,7 +5694,7 @@ export default function App() {
             <ul className="text-xs text-emerald-800 space-y-1.5 list-disc list-inside font-medium">
               <li><strong>পূর্বের সকল বিক্রয় ইতিহাস (Sales History) সম্পূর্ণ সুরক্ষিত থাকবে</strong></li>
               <li>আজকের ও চলতি মাসের সকল লাভ-ক্ষতি ও বিক্রয় রিপোর্ট বহাল থাকবে</li>
-              <li>কাস্টমার তথ্য, ফোন নম্বর, NID ও মেমোর ছবি সুরক্ষিত থাকবে</li>
+              <li>কাস্টমার তথ্য, ফোন নম্বর, Application ID ও মেমোর ছবি সুরক্ষিত থাকবে</li>
               <li>মোবাইল বাজার ও কিস্তি রেকর্ড অপরিবর্তিত থাকবে</li>
               <li>স্টক খালি হওয়ার পর আপনি নতুন পণ্য ফ্রেশভাবে যুক্ত করতে পারবেন</li>
             </ul>
@@ -5806,6 +5987,7 @@ export default function App() {
                 setNewSale(prev => ({
                   customer_name: '',
                   phone_number: '',
+                  application_id: '',
                   nid_number: '',
                   address: '',
                   guarantor_number: '',

@@ -31,7 +31,8 @@ export interface Sale {
   id: string;
   customer_name: string;
   phone_number: string;
-  nid_number: string;
+  application_id?: string;
+  nid_number?: string;
   address: string;
   guarantor_number: string;
   product_id: string;
@@ -49,6 +50,7 @@ export interface Sale {
   actual_sale_price?: number;
   is_cash_sale?: boolean;
   is_accessory?: boolean;
+  is_bar_phone?: boolean;
   accessory_category?: string;
   quantity_sold?: number;
   unit_price?: number;

@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   DollarSign,
   Package,
-  Boxes
+  Boxes,
+  List
 } from 'lucide-react';
 import { Product } from '../types';
 
@@ -24,6 +25,7 @@ interface BarPhoneModalProps {
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
   onSellProduct: (product: Product, isCashSale?: boolean) => void;
+  onOpenSales?: () => void;
 }
 
 export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
@@ -34,7 +36,8 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
   onAddProduct,
   onEditProduct,
   onDeleteProduct,
-  onSellProduct
+  onSellProduct,
+  onOpenSales
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -116,6 +119,17 @@ export const BarPhoneModal: React.FC<BarPhoneModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {onOpenSales && (
+                <button
+                  type="button"
+                  onClick={onOpenSales}
+                  className="px-3 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="বার ফোন বিক্রয় তালিকা দেখুন"
+                >
+                  <List className="w-4 h-4 text-cyan-600" />
+                  <span>Sales List (বিক্রয় তালিকা)</span>
+                </button>
+              )}
               {!isReadOnly && onAddProduct && (
                 <button
                   type="button"
