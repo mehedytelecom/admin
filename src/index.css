@@ -1,1 +1,109 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global dark mode root adjustments */
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+  background-color: #090d16;
+  color: #f1f5f9;
+}
+
+html.dark body {
+  background-color: #090d16;
+  color: #f1f5f9;
+}
+
+/* Ensure smooth transition */
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Modal and card dark surfaces */
+html.dark .bg-white {
+  background-color: #0f172a;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/70,
+html.dark .bg-gray-50\/70,
+html.dark .bg-gray-50\/80,
+html.dark .bg-gray-50\/90 {
+  background-color: #0b1120;
+}
+
+html.dark .bg-gray-100 {
+  background-color: #1e293b;
+}
+
+html.dark .bg-gray-200 {
+  background-color: #334155;
+}
+
+/* Borders in dark mode */
+html.dark .border-gray-50,
+html.dark .border-gray-100,
+html.dark .border-gray-150,
+html.dark .border-gray-200,
+html.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b;
+}
+
+/* Text contrast in dark mode */
+html.dark .text-gray-900,
+html.dark .text-gray-800 {
+  color: #f8fafc;
+}
+
+html.dark .text-gray-700 {
+  color: #e2e8f0;
+}
+
+html.dark .text-gray-600 {
+  color: #cbd5e1;
+}
+
+html.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+/* Form inputs & dropdowns */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+html.dark select,
+html.dark textarea {
+  background-color: #131c2e;
+  color: #f9fafb;
+  border-color: #334155;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* Hover surfaces */
+html.dark .hover\:bg-gray-50:hover {
+  background-color: #1e293b;
+}
+
+html.dark .hover\:bg-gray-100:hover {
+  background-color: #27354a;
+}
+
+/* Tables inside modals and lists */
+html.dark thead.bg-gray-50,
+html.dark thead.bg-slate-50 {
+  background-color: #131c2e;
+  color: #94a3b8;
+}
+
+html.dark tr.hover\:bg-gray-50:hover {
+  background-color: #172236;
+}

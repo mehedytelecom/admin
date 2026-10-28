@@ -41,7 +41,13 @@ import {
   Smartphone,
   Boxes,
   CheckCircle2,
-  Headphones
+  Headphones,
+  Moon,
+  Sun,
+  Settings,
+  Facebook,
+  Twitter,
+  Youtube
 } from 'lucide-react';
 import { animate, motion, AnimatePresence } from 'motion/react';
 import { 
@@ -106,18 +112,18 @@ const Modal = ({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidthClass} max-h-[92vh] overflow-hidden flex flex-col`}
+          className={`bg-white dark:bg-gray-900 border border-transparent dark:border-gray-800 rounded-2xl shadow-2xl w-full ${maxWidthClass} max-h-[92vh] overflow-hidden flex flex-col transition-colors`}
         >
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100">
-            <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{title}</h2>
             <div className="flex items-center gap-2">
               {headerRight}
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <X className="w-6 h-6 text-gray-500" />
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500 dark:text-gray-400">
+                <X className="w-6 h-6" />
               </button>
             </div>
           </div>
-          <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 text-gray-800 dark:text-gray-200">
             {children}
           </div>
         </motion.div>
@@ -166,20 +172,20 @@ const SummaryItem = ({
 }) => (
   <div 
     onClick={onClick}
-    className={`flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all ${
-      onClick ? 'cursor-pointer hover:border-blue-400 hover:shadow-blue-100/50 active:scale-[0.98]' : ''
+    className={`flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all ${
+      onClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-blue-100/50 dark:hover:shadow-blue-900/20 active:scale-[0.98]' : ''
     }`}
   >
     <div className={`p-3 rounded-full mb-3 ${colorClass}`}>
       {Icon ? <Icon className="w-6 h-6 text-white" /> : <span className="text-xl font-bold text-white leading-none">{symbol}</span>}
     </div>
-    <span className="text-sm font-medium text-gray-500 mb-1 text-center">{label}</span>
-    <span className="text-lg font-bold text-gray-900">
+    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 text-center">{label}</span>
+    <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
       {typeof value === 'number' ? <Counter value={value} prefix={prefix} suffix={suffix} /> : value}
     </span>
     {subtitle && (
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 border ${
-        subtitleClass || 'text-blue-800 bg-blue-50 border-blue-200'
+        subtitleClass || 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800'
       }`}>
         {subtitle}
       </span>
@@ -187,32 +193,74 @@ const SummaryItem = ({
   </div>
 );
 
-const RestrictedAccess = ({ user, onLogout }: { user: FirebaseUser; onLogout: () => void }) => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center border border-red-100"
-    >
-      <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-        <ShieldCheck className="w-10 h-10 text-red-500" />
-      </div>
-      <h2 className="text-2xl font-black text-gray-900 mb-2">Access Restricted</h2>
-      <p className="text-gray-500 mb-8 leading-relaxed">
-        Hello <span className="font-bold text-gray-700">{user.displayName || user.email}</span>, this dashboard is reserved for the administrator only. Your current account does not have permission to view this data.
+const Footer = () => (
+  <footer className="w-full bg-[#18181b] text-white border-t border-zinc-800 py-3.5 px-4 sm:px-8 mt-auto">
+    <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+      <p className="text-xs sm:text-sm md:text-base font-normal tracking-wide text-zinc-100">
+        Copyright © 2025-2026 MehedyTelecom.com | All Rights Reserved
       </p>
-      <div className="space-y-4">
-        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-600">
-          Logged in as: <span className="font-mono font-bold">{user.email}</span>
-        </div>
-        <button 
-          onClick={onLogout}
-          className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
+      <div className="flex items-center gap-3">
+        <a 
+          href="https://facebook.com" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="w-8 h-8 rounded-full bg-black hover:bg-zinc-800 text-white flex items-center justify-center border border-zinc-800 transition-all cursor-pointer shadow-sm"
+          title="Facebook"
         >
-          <LogOut className="w-5 h-5" /> Sign Out
-        </button>
+          <Facebook className="w-4 h-4 fill-white" />
+        </a>
+        <a 
+          href="https://twitter.com" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="w-8 h-8 rounded-full bg-black hover:bg-zinc-800 text-white flex items-center justify-center border border-zinc-800 transition-all cursor-pointer shadow-sm"
+          title="Twitter"
+        >
+          <Twitter className="w-4 h-4 fill-white" />
+        </a>
+        <a 
+          href="https://youtube.com" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="w-8 h-8 rounded-full bg-black hover:bg-zinc-800 text-white flex items-center justify-center border border-zinc-800 transition-all cursor-pointer shadow-sm"
+          title="YouTube"
+        >
+          <Youtube className="w-4 h-4 fill-white" />
+        </a>
       </div>
-    </motion.div>
+    </div>
+  </footer>
+);
+
+const RestrictedAccess = ({ user, onLogout }: { user: FirebaseUser; onLogout: () => void }) => (
+  <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col justify-between transition-colors">
+    <div className="flex-1 flex items-center justify-center p-6">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-md w-full bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-8 text-center border border-red-100 dark:border-gray-800"
+      >
+        <div className="w-20 h-20 bg-red-50 dark:bg-red-950/50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <ShieldCheck className="w-10 h-10 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-black text-gray-900 dark:text-gray-100 mb-2">Access Restricted</h2>
+        <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
+          Hello <span className="font-bold text-gray-700 dark:text-gray-200">{user.displayName || user.email}</span>, this dashboard is reserved for authorized accounts only.
+        </p>
+        <div className="space-y-4">
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
+            Logged in as: <span className="font-mono font-bold">{user.email}</span>
+          </div>
+          <button 
+            onClick={onLogout}
+            className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <LogOut className="w-5 h-5" /> Exit
+          </button>
+        </div>
+      </motion.div>
+    </div>
+    <Footer />
   </div>
 );
 
@@ -378,6 +426,42 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Global Dark Mode state with localStorage persistence
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved) return saved === 'dark';
+      return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleDarkMode = useCallback((targetState?: boolean) => {
+    setIsDarkMode(prev => {
+      const next = targetState !== undefined ? targetState : !prev;
+      try {
+        localStorage.setItem('theme', next ? 'dark' : 'light');
+      } catch (e) {
+        console.error('Failed to save theme in localStorage', e);
+      }
+      if (next) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
@@ -1714,63 +1798,66 @@ export default function App() {
     const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-8 sm:p-10 rounded-3xl shadow-xl w-full max-w-md text-center border border-gray-100"
-        >
-          <LogoBranding fileId={logoFileId} className="w-20 h-20 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mehedy Telecom</h1>
-          <p className="text-gray-500 mb-6 text-sm">Manage your inventory and sales efficiently</p>
+      <div className="min-h-screen flex flex-col justify-between bg-gray-50 dark:bg-gray-950 p-4 transition-colors">
+        <div className="flex-1 flex items-center justify-center w-full">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-900 p-8 sm:p-10 rounded-3xl shadow-xl w-full max-w-md text-center border border-gray-100 dark:border-gray-800"
+          >
+            <LogoBranding fileId={logoFileId} className="w-20 h-20 mx-auto mb-6" />
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Mehedy Telecom</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">Manage your inventory and sales efficiently</p>
 
-          {loginError && (
-            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-800 leading-relaxed">
-                  <p className="font-semibold text-amber-900 mb-1">Sign-in Notice</p>
-                  <p>{loginError}</p>
+            {loginError && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-left">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">Sign-in Notice</p>
+                    <p>{loginError}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          <button 
-            onClick={handleLogin}
-            disabled={isLoggingIn}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-[0.99]"
-          >
-            {isLoggingIn ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Signing in...</span>
-              </>
-            ) : (
-              <>
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
-                <span>Sign in with Google</span>
-              </>
             )}
-          </button>
 
-          {isInIframe && (
-            <div className="mt-5 pt-4 border-t border-gray-100 text-center">
-              <p className="text-xs text-gray-400 mb-2">
-                Running in preview frame? If Google Sign-in fails due to browser restrictions:
-              </p>
-              <a
-                href={typeof window !== 'undefined' ? window.location.href : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 text-xs text-blue-600 hover:text-blue-700 font-semibold bg-blue-50 hover:bg-blue-100 py-2.5 px-4 rounded-xl transition-all w-full border border-blue-200"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Open App in New Tab to Sign In
-              </a>
-            </div>
-          )}
-        </motion.div>
+            <button 
+              onClick={handleLogin}
+              disabled={isLoggingIn}
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-[0.99] cursor-pointer"
+            >
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
+                  <span>Sign in with Google</span>
+                </>
+              )}
+            </button>
+
+            {isInIframe && (
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 text-center">
+                <p className="text-xs text-gray-400 mb-2">
+                  Running in preview frame? If Google Sign-in fails due to browser restrictions:
+                </p>
+                <a
+                  href={typeof window !== 'undefined' ? window.location.href : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 text-xs text-blue-600 hover:text-blue-700 font-semibold bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 py-2.5 px-4 rounded-xl transition-all w-full border border-blue-200 dark:border-blue-800"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open App in New Tab to Sign In
+                </a>
+              </div>
+            )}
+          </motion.div>
+        </div>
+        <Footer />
       </div>
     );
   }
@@ -1780,37 +1867,77 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 h-28 sm:h-36 shadow-md relative">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-50 h-28 sm:h-36 shadow-md relative">
         <div className="absolute inset-0 overflow-hidden rounded-b-2xl pointer-events-none">
           <BannerBranding fileId={bannerFileId} />
         </div>
         
         {/* Action Buttons & User Info - Top Right */}
-        <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 flex items-center gap-1 sm:gap-3">
-          <div className="flex flex-col items-end mr-1">
-            <span className="text-[9px] font-black text-gray-900 uppercase tracking-wider bg-white/70 backdrop-blur-xs px-1.5 py-0.5 rounded shadow-xs">{user.displayName || user.email}</span>
-            {isReadOnly && (
-              <span className="text-[10px] font-bold text-amber-950 bg-amber-200/95 backdrop-blur-xs px-2 py-0.5 rounded-full mt-0.5 flex items-center gap-1 shadow-xs border border-amber-300">
-                <Eye className="w-3 h-3 text-amber-900" /> ভিউয়ার (Read-Only)
-              </span>
-            )}
-          </div>
+        <div className="absolute top-1 right-1 sm:top-2 sm:right-4 z-20 flex items-center gap-1 sm:gap-2">
+          {/* Quick Dark Mode Toggle */}
           <button 
+            type="button"
+            onClick={() => toggleDarkMode()}
+            className="p-1.5 sm:p-2 bg-white/60 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 backdrop-blur-md rounded-full shadow-sm border border-white/50 dark:border-gray-700 transition-all text-gray-800 dark:text-gray-200 cursor-pointer"
+            title={isDarkMode ? "Light Mode সক্রিয় করুন" : "Dark Mode সক্রিয় করুন"}
+          >
+            {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-700" />}
+          </button>
+
+          {/* Shop Settings */}
+          <button 
+            type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="p-1.5 sm:p-2 bg-white/40 hover:bg-white backdrop-blur-md rounded-full shadow-sm border border-white/40 transition-all text-gray-800 hover:text-blue-600"
-            title="Shop Settings"
+            className="p-1.5 sm:p-2 bg-white/60 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 backdrop-blur-md rounded-full shadow-sm border border-white/50 dark:border-gray-700 transition-all text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+            title="Shop Settings (Theme & Branding)"
           >
-            <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
-          <button 
-            onClick={handleLogout} 
-            className="p-1.5 sm:p-2 bg-white/40 hover:bg-red-50 backdrop-blur-md rounded-full shadow-sm border border-white/40 transition-all group"
-            title="Logout"
-          >
-            <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-800 group-hover:text-red-600" />
-          </button>
+
+          {/* User Name & Exit Button */}
+          {!isSuperAdmin ? (
+            /* Non-admin accessed accounts: show their Gmail name beside exit */
+            <div className="flex items-center gap-2 pl-2 sm:pl-2.5 pr-1 py-1 bg-white/70 dark:bg-gray-800/90 backdrop-blur-md rounded-full shadow-sm border border-white/60 dark:border-gray-700">
+              <div className="flex flex-col items-end leading-tight">
+                <span className="text-[10px] sm:text-xs font-black text-gray-900 dark:text-gray-100 uppercase tracking-tight max-w-[110px] sm:max-w-[190px] truncate" title={user.displayName || user.email || ''}>
+                  {user.displayName || user.email?.split('@')[0] || user.email}
+                </span>
+                <span className="text-[8px] sm:text-[9px] font-mono text-gray-500 dark:text-gray-400 max-w-[110px] sm:max-w-[170px] truncate">
+                  {user.email}
+                </span>
+              </div>
+
+              {isReadOnly && (
+                <span className="text-[8px] font-bold text-amber-950 bg-amber-200/95 dark:bg-amber-900/60 dark:text-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-2xs border border-amber-300 dark:border-amber-700 shrink-0">
+                  <Eye className="w-2.5 h-2.5" /> View-Only
+                </span>
+              )}
+
+              {/* Exit / Logout */}
+              <button 
+                type="button"
+                onClick={handleLogout} 
+                className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white dark:bg-red-950/70 dark:hover:bg-red-600 dark:text-red-300 dark:hover:text-white rounded-full transition-all group cursor-pointer shadow-2xs"
+                title="Exit / Logout (লগআউট)"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold">Exit</span>
+              </button>
+            </div>
+          ) : (
+            /* Admin: Just Exit button without name */
+            <button 
+              type="button"
+              onClick={handleLogout} 
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-white/70 hover:bg-red-600 text-gray-800 hover:text-white dark:bg-gray-800/90 dark:hover:bg-red-600 dark:text-gray-200 dark:hover:text-white backdrop-blur-md rounded-full shadow-sm border border-white/60 dark:border-gray-700 transition-all group cursor-pointer"
+              title="Exit / Logout (লগআউট)"
+            >
+              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 group-hover:text-white dark:text-red-400 dark:group-hover:text-white" />
+              <span className="text-xs font-bold">Exit</span>
+            </button>
+          )}
         </div>
 
         {/* Brand Elements - Logo and Name Stacked */}
@@ -1936,9 +2063,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8 flex-1 w-full">
         {/* Summary Card */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-8">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 sm:p-8 mb-8 transition-colors">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 mb-8">
             <div className="flex flex-col gap-3 sm:gap-4">
               {/* Accessories button on top */}
@@ -2158,13 +2285,13 @@ export default function App() {
           </div>
         </div>
 
-        <div className="h-px bg-gray-200 mb-8" />
+        <div className="h-px bg-gray-200 dark:bg-gray-800 mb-8" />
 
         {/* Current Month Sales Card */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden mb-8 transition-colors">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <TrendingUp className="w-6 h-6 text-emerald-600" />
                 Monthly Sales List ({format(new Date(), 'MMMM yyyy')})
               </h2>
@@ -2507,35 +2634,35 @@ export default function App() {
           </div>
         </div>
 
-        <div className="h-px bg-gray-200 mb-8" />
+        <div className="h-px bg-gray-200 dark:bg-gray-800 mb-8" />
 
         {/* Product Stock List */}
-        <div id="stock-list-section" className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div id="stock-list-section" className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <Package className="w-6 h-6 text-blue-600" />
                 Product Stock List
               </h2>
               {/* Filter Tabs */}
-              <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1 text-xs font-bold">
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl gap-1 text-xs font-bold">
                 <button
                   onClick={() => setProductConditionFilter('all')}
-                  className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${productConditionFilter === 'all' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                 >
                   All Phones ({products.filter(p => !p.is_accessory).length})
                 </button>
                 <button
                   onClick={() => setProductConditionFilter('new')}
-                  className={`px-3 py-1 rounded-lg transition-all ${productConditionFilter === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${productConditionFilter === 'new' ? 'bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                 >
                   Brand New ({products.filter(p => (p.condition || 'new') === 'new' && !p.is_accessory).length})
                 </button>
                 <button
                   onClick={() => setProductConditionFilter('used')}
-                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${productConditionFilter === 'used' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${productConditionFilter === 'used' ? 'bg-white dark:bg-gray-900 text-amber-700 dark:text-amber-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                 >
-                  <RotateCcw className="w-3 h-3 text-amber-600" />
+                  <RotateCcw className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                   Used ({products.filter(p => p.condition === 'used' && !p.is_accessory).length})
                 </button>
                 <button
@@ -2744,6 +2871,9 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       <Modal 
         isOpen={isAddProductOpen} 
@@ -5535,9 +5665,75 @@ export default function App() {
       <Modal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
-        title="Shop Settings"
+        title="Shop Settings (দোকান ও ডিসপ্লে সেটিংস)"
       >
         <div className="space-y-8">
+          {/* Global Dark Mode / Display Theme Section */}
+          <div className="bg-gray-50 dark:bg-gray-800/80 p-4 sm:p-5 rounded-2xl border border-gray-200 dark:border-gray-700 transition-colors">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-xs ${
+                  isDarkMode ? 'bg-indigo-600 text-white shadow-indigo-900/40' : 'bg-amber-100 text-amber-700 shadow-amber-200'
+                }`}>
+                  {isDarkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    Display Theme (ডিসপ্লে থিম)
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                      isDarkMode ? 'bg-indigo-900/80 text-indigo-300 border border-indigo-700' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}>
+                      {isDarkMode ? 'Dark Mode' : 'Light Mode'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    মেইন ড্যাশবোর্ড, সেলস কাউন্টার ও সমস্ত পপআপে ডার্ক অথবা লাইট মোড সক্রিয় করুন। এটি ব্রাউজারের লোকালস্টোরেজে স্বয়ংক্রিয়ভাবে সংরক্ষিত থাকে।
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => toggleDarkMode(false)}
+                className={`p-3.5 rounded-xl border-2 flex items-center gap-3 transition-all cursor-pointer text-left ${
+                  !isDarkMode
+                    ? 'border-blue-600 bg-white text-blue-900 shadow-md ring-2 ring-blue-100 font-bold'
+                    : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200">
+                  <Sun className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-bold">Light Mode</div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400">উজ্জ্বল ও সাদা থিম</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleDarkMode(true)}
+                className={`p-3.5 rounded-xl border-2 flex items-center gap-3 transition-all cursor-pointer text-left ${
+                  isDarkMode
+                    ? 'border-indigo-500 bg-gray-900 text-white shadow-md ring-2 ring-indigo-500/30 font-bold'
+                    : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-indigo-950 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-800">
+                  <Moon className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs sm:text-sm font-bold">Dark Mode</div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400">চোখের আরাম ও ডার্ক থিম</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 dark:bg-gray-800" />
+
           {/* Logo Section */}
           <div>
             <h3 className="text-sm font-bold text-gray-700 mb-3">Shop Logo / Profile Picture</h3>

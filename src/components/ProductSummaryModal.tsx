@@ -156,10 +156,10 @@ export const ProductSummaryModal: React.FC<ProductSummaryModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col border border-indigo-100"
+          className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col border border-indigo-100 dark:border-gray-800 text-gray-900 dark:text-gray-100"
         >
           {/* Header */}
-          <div className="p-4 sm:p-6 border-b border-indigo-100 bg-gradient-to-r from-indigo-50/70 via-white to-blue-50/40 flex items-center justify-between gap-3">
+          <div className="p-4 sm:p-6 border-b border-indigo-100 dark:border-gray-800 bg-gradient-to-r from-indigo-50/70 via-white to-blue-50/40 dark:from-gray-900 dark:via-gray-900 dark:to-gray-850 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
                 <Layers className="w-6 h-6" />

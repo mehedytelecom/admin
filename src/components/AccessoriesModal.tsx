@@ -544,7 +544,7 @@ export const AccessoriesModal: React.FC<AccessoriesModalProps> = ({
           initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
-          className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-auto max-h-[94vh]"
+          className="bg-white dark:bg-gray-900 w-full max-w-5xl rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 text-gray-900 dark:text-gray-100 overflow-hidden flex flex-col my-auto max-h-[94vh]"
         >
           {/* Header */}
           <div className="p-4 sm:p-5 border-b border-gray-100 bg-gradient-to-r from-teal-700 via-emerald-700 to-teal-800 text-white flex items-center justify-between gap-3 shrink-0">
