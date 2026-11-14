@@ -69,6 +69,22 @@
       "properties": {
         "timestamp": { "type": "string" }
       }
+    },
+    "UserAccessRequest": {
+      "title": "UserAccessRequest",
+      "description": "User login access request and approval status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "display_name": { "type": "string" },
+        "photo_url": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "role": { "type": "string", "enum": ["viewer", "editor"] },
+        "requested_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "display_name", "status", "role", "requested_at", "updated_at"]
     }
   },
   "firestore": {
@@ -87,6 +103,10 @@
     "settings": {
       "schema": "ShopSettings",
       "description": "Shop settings like branding banner"
+    },
+    "users": {
+      "schema": "UserAccessRequest",
+      "description": "Collection of user access requests and approved viewers"
     },
     "test": {
       "schema": "TestConnection",

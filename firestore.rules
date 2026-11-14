@@ -61,9 +61,18 @@ service cloud.firestore {
         (request.auth.token.email == "mehedyhossain160619@gmail.com" || request.auth.token.email == "likee350@gmail.com");
     }
 
+    function isApprovedUser() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
+
     function isViewer() {
       return isAuthenticated() && 
-        (request.auth.token.email == "brakib848@gmail.com" || isSuperAdmin());
+        (request.auth.token.email == "brakib848@gmail.com" ||
+         request.auth.token.email == "ekramulhaque680@gmail.com" ||
+         isApprovedUser() ||
+         isSuperAdmin());
     }
 
     function isValidSettings(data) {
@@ -91,12 +100,25 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      allow read: if isViewer();
-      allow write: if isSuperAdmin();
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow create: if isSuperAdmin() || (
+        isOwner(userId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.role == 'viewer'
+      );
+      allow update: if isSuperAdmin() || (
+        isOwner(userId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.role == 'viewer' &&
+        resource.data.status != 'approved'
+      );
+      allow delete: if isSuperAdmin();
     }
 
     match /settings/{settingId} {
-      allow read: if isViewer();
+      allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
     }
 

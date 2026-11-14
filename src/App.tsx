@@ -64,6 +64,7 @@ import {
   query, 
   orderBy, 
   doc, 
+  setDoc,
   updateDoc, 
   increment,
   deleteDoc,
@@ -73,7 +74,7 @@ import {
 } from 'firebase/firestore';
 import { format, isToday, isSameMonth, parseISO } from 'date-fns';
 import { auth, db } from './firebase';
-import { Product, Sale, MobileBazarRecord } from './types';
+import { Product, Sale, MobileBazarRecord, UserAccessRequest } from './types';
 import { uploadImageToTelegram, getTelegramImageUrl } from './services/telegramService';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { BarcodeScanner } from './components/BarcodeScanner';
@@ -232,37 +233,114 @@ const Footer = () => (
   </footer>
 );
 
-const RestrictedAccess = ({ user, onLogout }: { user: FirebaseUser; onLogout: () => void }) => (
-  <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col justify-between transition-colors">
-    <div className="flex-1 flex items-center justify-center p-6">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-8 text-center border border-red-100 dark:border-gray-800"
-      >
-        <div className="w-20 h-20 bg-red-50 dark:bg-red-950/50 rounded-full flex items-center justify-center mx-auto mb-6">
-          <ShieldCheck className="w-10 h-10 text-red-500" />
-        </div>
-        <h2 className="text-2xl font-black text-gray-900 dark:text-gray-100 mb-2">Access Restricted</h2>
-        <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-          Hello <span className="font-bold text-gray-700 dark:text-gray-200">{user.displayName || user.email}</span>, this dashboard is reserved for authorized accounts only.
-        </p>
-        <div className="space-y-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
-            Logged in as: <span className="font-mono font-bold">{user.email}</span>
+const RestrictedAccess = ({ 
+  user, 
+  accessRequest,
+  isResending,
+  onResendRequest,
+  onLogout 
+}: { 
+  user: FirebaseUser; 
+  accessRequest: UserAccessRequest | null;
+  isResending: boolean;
+  onResendRequest: () => void;
+  onLogout: () => void;
+}) => {
+  const isRejected = accessRequest?.status === 'rejected';
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col justify-between transition-colors">
+      <div className="flex-1 flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-8 text-center border border-amber-100 dark:border-gray-800"
+        >
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 relative ${
+            isRejected ? 'bg-red-50 dark:bg-red-950/50' : 'bg-amber-50 dark:bg-amber-950/50'
+          }`}>
+            {isRejected ? (
+              <ShieldCheck className="w-10 h-10 text-red-500" />
+            ) : (
+              <>
+                <Clock className="w-10 h-10 text-amber-500 animate-pulse" />
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-amber-500 rounded-full ring-4 ring-white dark:ring-gray-900 animate-ping" />
+              </>
+            )}
           </div>
-          <button 
-            onClick={onLogout}
-            className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <LogOut className="w-5 h-5" /> Exit
-          </button>
-        </div>
-      </motion.div>
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider mb-3 border bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+            {isRejected ? 'Access Declined (বাতিল করা হয়েছে)' : 'Approval Pending (অনুমোদনের অপেক্ষায়)'}
+          </div>
+
+          <h2 className="text-2xl font-black text-gray-900 dark:text-gray-100 mb-2">
+            {isRejected ? 'অ্যাক্সেস রিকোয়েস্ট বাতিল হয়েছে' : 'অ্যাডমিন অনুমোদনের অপেক্ষায়'}
+          </h2>
+
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+            হ্যালো <span className="font-bold text-gray-900 dark:text-gray-100">{user.displayName || user.email}</span>,{' '}
+            {isRejected
+              ? 'অ্যাডমিন আপনার পূর্বের লগইন রিকোয়েস্টটি স্থগিত বা বাতিল করেছেন। আপনি চাইলে নিচের বাটনে ক্লিক করে পুনরায় অনুমোদনের রিকোয়েস্ট পাঠাতে পারেন।'
+              : 'আপনার লগইন রিকোয়েস্টটি অ্যাডমিনের কাছে পাঠানো হয়েছে। অ্যাডমিন তার ড্যাশবোর্ড থেকে Approve করলেই এই পেজটি অটোমেটিক খুলে যাবে এবং আপনি সব তথ্য দেখতে পারবেন!'}
+          </p>
+
+          <div className="space-y-3">
+            <div className="p-4 bg-gray-50 dark:bg-gray-800/80 rounded-2xl border border-gray-100 dark:border-gray-700 text-left flex items-center gap-3">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt={user.displayName || ''} className="w-10 h-10 rounded-full border border-gray-200 shrink-0" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                  {user.displayName || 'Google Account'}
+                </p>
+                <p className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate">
+                  {user.email}
+                </p>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                isRejected
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+              }`}>
+                {isRejected ? 'Declined' : 'Pending'}
+              </span>
+            </div>
+
+            {!isRejected ? (
+              <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center justify-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+                <span>অ্যাডমিন Approve করার সাথে সাথেই ড্যাশবোর্ড খুলে যাবে...</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onResendRequest}
+                disabled={isResending}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-200 dark:shadow-none"
+              >
+                {isResending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <span>পুনরায় অনুমোদনের রিকোয়েস্ট পাঠান (Request Again)</span>
+              </button>
+            )}
+
+            <button 
+              type="button"
+              onClick={onLogout}
+              className="w-full py-3.5 bg-gray-900 hover:bg-black dark:bg-gray-800 dark:hover:bg-gray-700 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogOut className="w-5 h-5" /> Exit / Logout
+            </button>
+          </div>
+        </motion.div>
+      </div>
+      <Footer />
     </div>
-    <Footer />
-  </div>
-);
+  );
+};
 
 const TelegramImage: React.FC<{ fileId: string }> = ({ fileId }) => {
   const [url, setUrl] = useState<string | null>(() => {
@@ -417,7 +495,7 @@ const LogoBranding: React.FC<{ fileId: string | null; className?: string }> = ({
 
 // --- Constants ---
 const ADMIN_EMAILS = ['mehedyhossain160619@gmail.com', 'likee350@gmail.com'];
-const VIEWER_EMAILS = ['brakib848@gmail.com'];
+const VIEWER_EMAILS = ['brakib848@gmail.com', 'ekramulhaque680@gmail.com'];
 
 // --- Main App ---
 
@@ -465,12 +543,24 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [mobileBazarRecords, setMobileBazarRecords] = useState<MobileBazarRecord[]>([]);
+  const [userAccessDoc, setUserAccessDoc] = useState<UserAccessRequest | null>(null);
+  const [accessChecking, setAccessChecking] = useState(false);
+  const [isResendingRequest, setIsResendingRequest] = useState(false);
+  const [allUserRequests, setAllUserRequests] = useState<UserAccessRequest[]>([]);
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   
   const userEmail = (user?.email || '').toLowerCase().trim();
   const isSuperAdmin = Boolean(userEmail && ADMIN_EMAILS.includes(userEmail));
-  const isViewer = Boolean(userEmail && VIEWER_EMAILS.includes(userEmail));
+  const isBuiltInViewer = Boolean(userEmail && VIEWER_EMAILS.includes(userEmail));
+  const isApprovedFromDb = Boolean(userAccessDoc && userAccessDoc.status === 'approved');
+  const isViewer = isBuiltInViewer || isApprovedFromDb;
   const isAuthorized = isSuperAdmin || isViewer;
   const isReadOnly = isViewer && !isSuperAdmin;
+
+  const pendingUserRequests = useMemo(() => allUserRequests.filter(r => r.status === 'pending'), [allUserRequests]);
+  const approvedUserRequests = useMemo(() => allUserRequests.filter(r => r.status === 'approved'), [allUserRequests]);
+  const rejectedUserRequests = useMemo(() => allUserRequests.filter(r => r.status === 'rejected'), [allUserRequests]);
+
   // Modals
   const [activeScanner, setActiveScanner] = useState<'product' | 'productImei1' | 'productImei2' | 'sale' | 'cashSale' | 'search' | null>(null);
   const [activePhotoCapture, setActivePhotoCapture] = useState<'sale' | 'editSale' | null>(null);
@@ -636,8 +726,90 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  // 1. Listen to shop branding settings and current user's access request document
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setUserAccessDoc(null);
+      setAccessChecking(false);
+      return;
+    }
+
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'shop'), (snap) => {
+      if (snap.exists()) {
+        setBannerFileId(snap.data().banner_file_id);
+        setLogoFileId(snap.data().logo_file_id);
+      }
+    });
+
+    if (isSuperAdmin || isBuiltInViewer) {
+      setAccessChecking(false);
+      return () => {
+        unsubSettings();
+      };
+    }
+
+    setAccessChecking(true);
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubUserAccess = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        setUserAccessDoc({ id: snap.id, ...snap.data() } as UserAccessRequest);
+        setAccessChecking(false);
+      } else {
+        // Automatically submit a pending access request for this newly signed-in user
+        const nowIso = new Date().toISOString();
+        const newReq = {
+          uid: user.uid,
+          email: (user.email || '').toLowerCase().trim(),
+          display_name: user.displayName || user.email?.split('@')[0] || 'User',
+          photo_url: user.photoURL || '',
+          status: 'pending' as const,
+          role: 'viewer' as const,
+          requested_at: nowIso,
+          updated_at: nowIso
+        };
+        setDoc(userDocRef, newReq).catch((err) => {
+          console.error('Failed to create login access request:', err);
+        });
+        setAccessChecking(false);
+      }
+    }, (err) => {
+      console.error('Error listening to user access status:', err);
+      setAccessChecking(false);
+    });
+
+    return () => {
+      unsubSettings();
+      unsubUserAccess();
+    };
+  }, [user, isSuperAdmin, isBuiltInViewer]);
+
+  // 2. Listen to all user access requests when Admin is logged in
+  useEffect(() => {
+    if (!user || !isSuperAdmin) {
+      setAllUserRequests([]);
+      return;
+    }
+
+    const qUsers = query(collection(db, 'users'), orderBy('requested_at', 'desc'));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      setAllUserRequests(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as UserAccessRequest)));
+    }, (error) => {
+      console.error('Failed to load user access requests:', error);
+    });
+
+    return () => {
+      unsubUsers();
+    };
+  }, [user, isSuperAdmin]);
+
+  // 3. Listen to inventory & sales data ONLY when user is authorized
+  useEffect(() => {
+    if (!user || !isAuthorized) {
+      setProducts([]);
+      setSales([]);
+      setMobileBazarRecords([]);
+      return;
+    }
 
     const qProducts = query(collection(db, 'products'), orderBy('created_at', 'desc'));
     const unsubProducts = onSnapshot(qProducts, (snapshot) => {
@@ -660,20 +832,12 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'mobile_bazar');
     });
 
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'shop'), (doc) => {
-      if (doc.exists()) {
-        setBannerFileId(doc.data().banner_file_id);
-        setLogoFileId(doc.data().logo_file_id);
-      }
-    });
-
     return () => {
       unsubProducts();
       unsubSales();
       unsubMobileBazar();
-      unsubSettings();
     };
-  }, [user]);
+  }, [user, isAuthorized]);
 
   const handleLogin = async () => {
     if (isLoggingIn) return;
@@ -707,6 +871,60 @@ export default function App() {
   };
 
   const handleLogout = () => signOut(auth);
+
+  const handleApproveUserRequest = async (reqId: string) => {
+    if (!isSuperAdmin) return;
+    try {
+      await updateDoc(doc(db, 'users', reqId), {
+        status: 'approved',
+        role: 'viewer',
+        updated_at: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Failed to approve user:', error);
+      alert(`Approve করতে সমস্যা হয়েছে: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleRejectUserRequest = async (reqId: string) => {
+    if (!isSuperAdmin) return;
+    try {
+      await updateDoc(doc(db, 'users', reqId), {
+        status: 'rejected',
+        updated_at: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Failed to reject user:', error);
+      alert(`বাতিল করতে সমস্যা হয়েছে: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteUserRequest = async (reqId: string) => {
+    if (!isSuperAdmin) return;
+    if (!window.confirm('আপনি কি এই ইউজারের রিকোয়েস্ট ও অ্যাক্সেস রেকর্ড মুছে ফেলতে চান?')) return;
+    try {
+      await deleteDoc(doc(db, 'users', reqId));
+    } catch (error: any) {
+      console.error('Failed to delete user request:', error);
+      alert(`মুছে ফেলতে সমস্যা হয়েছে: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleResendAccessRequest = async () => {
+    if (!user || isResendingRequest) return;
+    setIsResendingRequest(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        status: 'pending',
+        role: 'viewer',
+        updated_at: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Failed to resend request:', error);
+    } finally {
+      setIsResendingRequest(false);
+    }
+  };
 
   const handleUpdateBanner = async (file: File) => {
     if (isSubmitting) return;
@@ -1805,9 +2023,9 @@ export default function App() {
     return { profit, downPayment, net };
   }, [newMobileBazar, sales, calculateDynamicProfit]);
 
-  if (loading) {
+  if (loading || accessChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
       </div>
     );
@@ -1882,7 +2100,15 @@ export default function App() {
   }
 
   if (!isAuthorized) {
-    return <RestrictedAccess user={user} onLogout={handleLogout} />;
+    return (
+      <RestrictedAccess 
+        user={user} 
+        accessRequest={userAccessDoc}
+        isResending={isResendingRequest}
+        onResendRequest={handleResendAccessRequest}
+        onLogout={handleLogout} 
+      />
+    );
   }
 
   return (
@@ -1904,6 +2130,28 @@ export default function App() {
           >
             {isDarkMode ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-700" />}
           </button>
+
+          {/* Admin User Access & Approval Manager Button */}
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsAccessModalOpen(true)}
+              className={`relative p-1.5 sm:px-3 sm:py-1.5 backdrop-blur-md rounded-full shadow-sm border transition-all flex items-center gap-1.5 cursor-pointer ${
+                pendingUserRequests.length > 0
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400 animate-pulse'
+                  : 'bg-white/60 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border-white/50 dark:border-gray-700'
+              }`}
+              title="User Login Approvals (ইউজার অ্যাক্সেস অনুমোদন)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline text-xs font-bold">Access</span>
+              {pendingUserRequests.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] font-black bg-red-600 text-white rounded-full shadow-xs">
+                  {pendingUserRequests.length}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Shop Settings */}
           <button 
@@ -2083,6 +2331,85 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8 flex-1 w-full">
+        {/* Live Pending Login Approval Banner for Admin */}
+        {isSuperAdmin && pendingUserRequests.length > 0 && (
+          <div className="mb-6 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-3xl p-4 sm:p-6 shadow-md transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-black text-amber-950 dark:text-amber-100">
+                      নতুন লগইন অনুমোদনের রিকোয়েস্ট ({pendingUserRequests.length})
+                    </h3>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                      Waiting for Approval
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    নিচের ইউজাররা আপনার ওয়েবঅ্যাপে লগইন করে তথ্য দেখার অনুমতি চাচ্ছেন। <strong>Approve</strong> করলে তারা শুধুমাত্র দেখতে পারবে (কোনো এডিট বা ডিলিট করতে পারবে না)।
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAccessModalOpen(true)}
+                className="text-xs font-bold text-amber-900 dark:text-amber-200 bg-white dark:bg-gray-800 hover:bg-amber-100 px-3.5 py-2 rounded-xl border border-amber-200 dark:border-gray-700 transition-colors shrink-0 cursor-pointer"
+              >
+                সকল ইউজার লিস্ট দেখুন →
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {pendingUserRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="p-3.5 bg-white dark:bg-gray-900 rounded-2xl border border-amber-200/80 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {req.photo_url ? (
+                      <img src={req.photo_url} alt={req.display_name} className="w-10 h-10 rounded-full border border-gray-200 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold shrink-0">
+                        <User className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-gray-900 dark:text-gray-100 truncate">
+                        {req.display_name}
+                      </p>
+                      <p className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate">
+                        {req.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleApproveUserRequest(req.id)}
+                      className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Approve (দেখার অনুমতি দিন)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectUserRequest(req.id)}
+                      className="px-3.5 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900/80 text-red-600 dark:text-red-300 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Summary Card */}
         <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 sm:p-8 mb-8 transition-colors">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 mb-8">
@@ -4971,73 +5298,77 @@ export default function App() {
         title="Mobile Bazar - Add Hisab"
       >
         <div className="space-y-6">
-          <form onSubmit={handleMobileBazarSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Select Sale Record</label>
-              <select 
-                required
-                value={newMobileBazar.sale_id}
-                onChange={e => setNewMobileBazar({...newMobileBazar, sale_id: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-              >
-                <option value="">Choose a sale record...</option>
-                {sales.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.customer_name} - {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''} {s.color ? `[${s.color}]` : ''} ({format(parseISO(s.sale_date), 'MMM dd')})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Down Payment (৳)</label>
-              <input 
-                required
-                type="number"
-                value={newMobileBazar.down_payment}
-                onChange={e => setNewMobileBazar({...newMobileBazar, down_payment: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="Enter down payment amount"
-              />
-            </div>
-
-            {mobileBazarPreview && (
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Down Payment:</span>
-                  <span className="font-bold">৳{mobileBazarPreview.down_payment}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Sale Profit Margin:</span>
-                  <span className="font-bold text-red-500">- ৳{mobileBazarPreview.profit}</span>
-                </div>
-                <div className="h-px bg-blue-200 my-2" />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-blue-800">Net Amount:</span>
-                  <span className="text-lg font-black text-blue-600">৳{mobileBazarPreview.net}</span>
-                </div>
+          {!isReadOnly && (
+            <form onSubmit={handleMobileBazarSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Select Sale Record</label>
+                <select 
+                  required
+                  value={newMobileBazar.sale_id}
+                  onChange={e => setNewMobileBazar({...newMobileBazar, sale_id: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Choose a sale record...</option>
+                  {sales.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.customer_name} - {s.product_name} {(s.ram || s.rom) ? `(${s.ram || ''}${s.ram && s.rom ? '/' : ''}${s.rom || ''})` : ''} {s.color ? `[${s.color}]` : ''} ({format(parseISO(s.sale_date), 'MMM dd')})
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Down Payment (৳)</label>
+                <input 
+                  required
+                  type="number"
+                  value={newMobileBazar.down_payment}
+                  onChange={e => setNewMobileBazar({...newMobileBazar, down_payment: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Enter down payment amount"
+                />
+              </div>
 
-            <button 
-              disabled={isSubmitting}
-              type="submit"
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Add Hisab"}
-            </button>
-          </form>
+              {mobileBazarPreview && (
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Down Payment:</span>
+                    <span className="font-bold">৳{mobileBazarPreview.down_payment}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Sale Profit Margin:</span>
+                    <span className="font-bold text-red-500">- ৳{mobileBazarPreview.profit}</span>
+                  </div>
+                  <div className="h-px bg-blue-200 my-2" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-blue-800">Net Amount:</span>
+                    <span className="text-lg font-black text-blue-600">৳{mobileBazarPreview.net}</span>
+                  </div>
+                </div>
+              )}
+
+              <button 
+                disabled={isSubmitting}
+                type="submit"
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Add Hisab"}
+              </button>
+            </form>
+          )}
 
           <div className="space-y-3 pt-4 border-t border-gray-100">
             <div className="flex justify-between items-end mb-2">
               <div>
                 <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">Recent Hisab</h3>
-                <button 
-                  onClick={handleResetMobileBazar}
-                  disabled={isSubmitting || mobileBazarRecords.length === 0}
-                  className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase mt-1 flex items-center gap-1 disabled:opacity-30"
-                >
-                  <Trash2 className="w-3 h-3" /> Reset All Records
-                </button>
+                {!isReadOnly && (
+                  <button 
+                    onClick={handleResetMobileBazar}
+                    disabled={isSubmitting || mobileBazarRecords.length === 0}
+                    className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase mt-1 flex items-center gap-1 disabled:opacity-30"
+                  >
+                    <Trash2 className="w-3 h-3" /> Reset All Records
+                  </button>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-xs text-gray-500 uppercase">Total Mobile Bazar</p>
@@ -5848,6 +6179,41 @@ export default function App() {
               </p>
             </div>
 
+            {/* User Login Access & Approval Section inside Settings */}
+            {isSuperAdmin && (
+              <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  User Login Access & Approvals (ইউজার অ্যাক্সেস ম্যানেজমেন্ট)
+                </h3>
+                <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/70 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-blue-950 dark:text-blue-100 text-sm flex items-center gap-2">
+                      <span>লগইন রিকোয়েস্ট ও অনুমোদিত ইউজার</span>
+                      {pendingUserRequests.length > 0 && (
+                        <span className="px-2 py-0.5 text-[10px] font-black bg-amber-500 text-white rounded-full">
+                          {pendingUserRequests.length} Pending
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-xs text-blue-800 dark:text-blue-300 mt-0.5">
+                      কেউ নতুন জিমেইল দিয়ে লগইন করতে চাইলে এখান থেকে <strong>Approve</strong> বা <strong>Remove</strong> করতে পারবেন।
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      setIsAccessModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all shrink-0 cursor-pointer"
+                  >
+                    Manage Users ({allUserRequests.length})
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Inventory Reset Section */}
             <div className="space-y-3 pt-4 border-t border-gray-100">
               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -5879,6 +6245,199 @@ export default function App() {
               </div>
             </div>
           </div>
+        </div>
+      </Modal>
+
+      {/* Admin User Login Access & Approval Modal */}
+      <Modal
+        isOpen={isAccessModalOpen}
+        onClose={() => setIsAccessModalOpen(false)}
+        title="User Access & Login Approvals (ইউজার অনুমোদন)"
+      >
+        <div className="space-y-6">
+          {/* 1. Pending Requests */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                Pending Approval Requests ({pendingUserRequests.length})
+              </h3>
+            </div>
+
+            {pendingUserRequests.length === 0 ? (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-800 text-center text-xs text-gray-500 dark:text-gray-400">
+                বর্তমানে অনুমোদনের অপেক্ষায় কোনো নতুন লগইন রিকোয়েস্ট নেই।
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingUserRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {req.photo_url ? (
+                        <img src={req.photo_url} alt={req.display_name} className="w-10 h-10 rounded-full border border-amber-300 shrink-0" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-bold shrink-0">
+                          <User className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-gray-900 dark:text-gray-100 truncate">
+                          {req.display_name}
+                        </p>
+                        <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
+                          {req.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveUserRequest(req.id)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Approve (View-Only)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectUserRequest(req.id)}
+                        className="px-3 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-300 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 transition-all cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="h-px bg-gray-100 dark:bg-gray-800" />
+
+          {/* 2. Approved View-Only Users */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" />
+              Approved View-Only Users ({approvedUserRequests.length + VIEWER_EMAILS.length})
+            </h3>
+
+            <div className="space-y-2">
+              {/* Built-in viewer emails */}
+              {VIEWER_EMAILS.map((email) => (
+                <div
+                  key={email}
+                  className="p-3 bg-gray-50 dark:bg-gray-800/70 rounded-2xl border border-gray-200/70 dark:border-gray-700 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold shrink-0">
+                      <Eye className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                        {email.split('@')[0]}
+                      </p>
+                      <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                        {email}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                    Permanent View-Only
+                  </span>
+                </div>
+              ))}
+
+              {/* Dynamically Approved Users from Firestore */}
+              {approvedUserRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {req.photo_url ? (
+                      <img src={req.photo_url} alt={req.display_name} className="w-9 h-9 rounded-full border border-emerald-300 shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">
+                          {req.display_name}
+                        </p>
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          View-Only
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                        {req.email}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRejectUserRequest(req.id)}
+                      className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      অ্যাক্সেস বন্ধ করুন (Revoke)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUserRequest(req.id)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition-colors cursor-pointer"
+                      title="মুছে ফেলুন"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Rejected Users */}
+          {rejectedUserRequests.length > 0 && (
+            <>
+              <div className="h-px bg-gray-100 dark:bg-gray-800" />
+              <div className="space-y-2.5">
+                <h3 className="text-xs font-black text-red-600 dark:text-red-400 uppercase tracking-wider">
+                  Rejected / Revoked Users ({rejectedUserRequests.length})
+                </h3>
+                {rejectedUserRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="p-3 bg-red-50/40 dark:bg-red-950/20 rounded-2xl border border-red-100 dark:border-red-900/50 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{req.display_name}</p>
+                      <p className="text-[11px] font-mono text-gray-500 truncate">{req.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveUserRequest(req.id)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUserRequest(req.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -6000,34 +6559,36 @@ export default function App() {
             >
               Close (বন্ধ করুন)
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const imeiToPreFill = notAvailableImei.imei;
-                setNotAvailableImei(prev => ({ ...prev, isOpen: false }));
-                setNewProduct({
-                  id: '',
-                  name: '',
-                  purchase_price: '',
-                  selling_price: '',
-                  quantity: '1',
-                  ram: '',
-                  rom: '',
-                  color: '',
-                  condition: 'new',
-                  condition_note: '',
-                  imeis: imeiToPreFill ? [imeiToPreFill] : [],
-                  imei_colors: {},
-                  image: null,
-                  image_file_id: ''
-                });
-                setIsAddProductOpen(true);
-              }}
-              className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-1.5 order-1 sm:order-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add to Stock (স্টকে যোগ করুন)</span>
-            </button>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={() => {
+                  const imeiToPreFill = notAvailableImei.imei;
+                  setNotAvailableImei(prev => ({ ...prev, isOpen: false }));
+                  setNewProduct({
+                    id: '',
+                    name: '',
+                    purchase_price: '',
+                    selling_price: '',
+                    quantity: '1',
+                    ram: '',
+                    rom: '',
+                    color: '',
+                    condition: 'new',
+                    condition_note: '',
+                    imeis: imeiToPreFill ? [imeiToPreFill] : [],
+                    imei_colors: {},
+                    image: null,
+                    image_file_id: ''
+                  });
+                  setIsAddProductOpen(true);
+                }}
+                className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs sm:text-sm transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-1.5 order-1 sm:order-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add to Stock (স্টকে যোগ করুন)</span>
+              </button>
+            )}
           </div>
         </div>
       </Modal>

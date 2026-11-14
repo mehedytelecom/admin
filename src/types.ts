@@ -70,3 +70,16 @@ export interface MobileBazarRecord {
   net_amount: number;
   created_at: string;
 }
+
+export interface UserAccessRequest {
+  id: string;
+  uid: string;
+  email: string;
+  display_name: string;
+  photo_url?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  role: 'viewer' | 'editor';
+  requested_at: string;
+  updated_at: string;
+}
+
