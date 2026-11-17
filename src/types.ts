@@ -29,12 +29,14 @@ export interface Product {
 
 export interface Sale {
   id: string;
+  memo_number?: string;
   customer_name: string;
   phone_number: string;
   application_id?: string;
   nid_number?: string;
   address: string;
   guarantor_number: string;
+  emi_app?: string;
   product_id: string;
   product_name: string;
   color?: string;
@@ -47,7 +49,12 @@ export interface Sale {
   sale_date: string;
   profit: number;
   purchase_price?: number;
+  product_price?: number;
+  discount?: number;
+  total_amount?: number;
   actual_sale_price?: number;
+  paid_amount?: number;
+  due_amount?: number;
   is_cash_sale?: boolean;
   is_accessory?: boolean;
   is_bar_phone?: boolean;

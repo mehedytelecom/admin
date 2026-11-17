@@ -250,6 +250,11 @@ export const ProductSelectCombobox: React.FC<ProductSelectComboboxProps> = ({
                 <span className="font-bold text-sm text-gray-900 truncate">
                   {selectedProduct.name}
                 </span>
+                {selectedProduct.is_bar_phone && (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                    Bar Phone
+                  </span>
+                )}
                 {selectedProduct.condition === 'used' ? (
                   <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                     Used
@@ -453,6 +458,11 @@ export const ProductSelectCombobox: React.FC<ProductSelectComboboxProps> = ({
                           <span className="font-bold text-sm text-gray-900 truncate">
                             {p.name}
                           </span>
+                          {p.is_bar_phone && (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                              Bar Phone
+                            </span>
+                          )}
                           {p.condition === 'used' ? (
                             <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                               Used

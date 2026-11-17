@@ -87,6 +87,7 @@ import { BarPhoneSalesModal } from './components/BarPhoneSalesModal';
 import { AccessoriesModal } from './components/AccessoriesModal';
 import { ColorSelector, DEFAULT_POPULAR_COLORS } from './components/ColorSelector';
 import { ProductSelectCombobox } from './components/ProductSelectCombobox';
+import { CashMemoModal, getSaleMemoNumber } from './components/CashMemoModal';
 import { getSaleBrandCategory, MonthlyBrandCategory, isBarPhoneSale, isAccessorySale, isSmartphoneSale } from './lib/brandUtils';
 
 // --- Components ---
@@ -568,7 +569,8 @@ export default function App() {
   const imei2InputRef = useRef<HTMLInputElement>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
-  const [saleTab, setSaleTab] = useState<'emi' | 'cash'>('emi');
+  const [saleTab, setSaleTab] = useState<'emi' | 'cash' | 'history'>('emi');
+  const [memoModalSale, setMemoModalSale] = useState<Sale | null>(null);
   const [isCashSaleOpen, setIsCashSaleOpen] = useState(false);
   const [isSaleListOpen, setIsSaleListOpen] = useState(false);
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
@@ -687,10 +689,17 @@ export default function App() {
     return Array.from(set);
   }, [products, customColors]);
 
+  const generateMemoNumber = useCallback(() => {
+    const datePart = format(new Date(), 'yyyyMMdd');
+    const randPart = Math.floor(1000 + Math.random() * 9000);
+    return `MT-${datePart}-${randPart}`;
+  }, []);
+
   const [saleImeiInput, setSaleImeiInput] = useState('');
   const [cashImeiInput, setCashImeiInput] = useState('');
 
   const [newSale, setNewSale] = useState({
+    memo_number: '',
     customer_name: '',
     phone_number: '',
     application_id: '',
@@ -699,16 +708,28 @@ export default function App() {
     guarantor_number: '',
     product_id: '',
     imei: '',
+    imei2: '',
     color: '',
+    product_price: '',
+    discount: '0',
+    paid_amount: '',
     images: [] as File[],
     sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
 
   const [cashSale, setCashSale] = useState({
+    memo_number: '',
+    customer_name: '',
+    phone_number: '',
+    address: '',
     product_id: '',
     imei: '',
+    imei2: '',
     color: '',
+    product_price: '',
+    discount: '0',
     actual_sale_price: '',
+    paid_amount: '',
     sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
   const [newMobileBazar, setNewMobileBazar] = useState({
@@ -717,6 +738,64 @@ export default function App() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSearch, setSaleSearch] = useState('');
+
+  // Saved EMI / Kisti Apps list (persisted in localStorage & Firestore settings/shop)
+  const [emiApps, setEmiApps] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mehedy_telecom_emi_apps');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return ['Mobile Bazar', 'PalmPay', 'Sahaj'];
+  });
+  const [isCreatingEmiApp, setIsCreatingEmiApp] = useState(false);
+  const [newEmiAppName, setNewEmiAppName] = useState('');
+
+  const handleCreateEmiApp = async (onSelectApp?: (name: string) => void) => {
+    const trimmed = newEmiAppName.trim();
+    if (!trimmed) return;
+    const exists = emiApps.some(a => a.toLowerCase() === trimmed.toLowerCase());
+    const updated = exists ? emiApps : [...emiApps, trimmed];
+    setEmiApps(updated);
+    try {
+      localStorage.setItem('mehedy_telecom_emi_apps', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    if (onSelectApp) {
+      onSelectApp(trimmed);
+    }
+    setNewEmiAppName('');
+    setIsCreatingEmiApp(false);
+    if (!isReadOnly) {
+      try {
+        await setDoc(doc(db, 'settings', 'shop'), { emi_apps: updated }, { merge: true });
+      } catch (err) {
+        console.warn('Could not sync emi_apps to Firestore:', err);
+      }
+    }
+  };
+
+  const handleDeleteEmiApp = async (appToRemove: string) => {
+    const updated = emiApps.filter(a => a !== appToRemove);
+    setEmiApps(updated);
+    try {
+      localStorage.setItem('mehedy_telecom_emi_apps', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    if (!isReadOnly) {
+      try {
+        await setDoc(doc(db, 'settings', 'shop'), { emi_apps: updated }, { merge: true });
+      } catch (err) {
+        console.warn('Could not sync emi_apps to Firestore:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -736,8 +815,17 @@ export default function App() {
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'shop'), (snap) => {
       if (snap.exists()) {
-        setBannerFileId(snap.data().banner_file_id);
-        setLogoFileId(snap.data().logo_file_id);
+        const data = snap.data();
+        setBannerFileId(data.banner_file_id);
+        setLogoFileId(data.logo_file_id);
+        if (Array.isArray(data.emi_apps) && data.emi_apps.length > 0) {
+          setEmiApps(data.emi_apps);
+          try {
+            localStorage.setItem('mehedy_telecom_emi_apps', JSON.stringify(data.emi_apps));
+          } catch {
+            // ignore
+          }
+        }
       }
     });
 
@@ -820,7 +908,13 @@ export default function App() {
 
     const qSales = query(collection(db, 'sales'), orderBy('sale_date', 'desc'));
     const unsubSales = onSnapshot(qSales, (snapshot) => {
-      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
+      const loadedSales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
+      setSales(loadedSales);
+      try {
+        localStorage.setItem('mehedy_telecom_sales_memos', JSON.stringify(loadedSales));
+      } catch (err) {
+        console.warn('Could not sync sales memos to localStorage:', err);
+      }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'sales');
     });
@@ -1524,31 +1618,53 @@ export default function App() {
         : Math.max(0, (product.quantity || 1) - 1);
 
       const unitPurchasePrice = Number(product.purchase_price) || 0;
-      const unitSellingPrice = Number(product.selling_price) || 0;
-      const saleProfit = unitSellingPrice - unitPurchasePrice;
+      const productPrice = newSale.product_price !== '' ? Number(newSale.product_price) : (Number(product.selling_price) || 0);
+      const discount = Number(newSale.discount || 0);
+      const totalAmount = Math.max(0, productPrice - discount);
+      const paidAmount = newSale.paid_amount !== '' ? Number(newSale.paid_amount) : totalAmount;
+      const dueAmount = Math.max(0, totalAmount - paidAmount);
+      const saleProfit = totalAmount - unitPurchasePrice;
+      const memoNumber = (newSale.memo_number || '').trim() || generateMemoNumber();
+      const resolvedImei2 = (newSale.imei2 || '').trim() || (matchedUnit ? (matchedUnit.imei1 === soldImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '');
 
-      await addDoc(collection(db, 'sales'), {
-        customer_name: newSale.customer_name,
-        phone_number: newSale.phone_number,
+      const salePayload = {
+        memo_number: memoNumber,
+        customer_name: newSale.customer_name || 'Walk-in Customer',
+        phone_number: newSale.phone_number || 'N/A',
         application_id: newSale.application_id || newSale.nid_number || '',
         nid_number: newSale.application_id || newSale.nid_number || '',
-        address: newSale.address,
-        guarantor_number: newSale.guarantor_number,
+        address: newSale.address || 'N/A',
+        guarantor_number: newSale.guarantor_number || '',
+        emi_app: newSale.guarantor_number || '',
         product_id: product.id,
         product_name: product.name,
         color: newSale.color || matchedUnit?.color || (soldImei && product.imei_colors?.[soldImei]) || product.color || '',
         imei: soldImei,
-        imei2: matchedUnit ? (matchedUnit.imei1 === soldImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '',
+        imei2: resolvedImei2,
         ram: product.ram || '',
         rom: product.rom || '',
         image_file_ids: imageFileIds,
         sale_date: new Date(newSale.sale_date).toISOString(),
         profit: saleProfit,
-        actual_sale_price: unitSellingPrice,
+        product_price: productPrice,
+        discount: discount,
+        total_amount: totalAmount,
+        paid_amount: paidAmount,
+        due_amount: dueAmount,
+        actual_sale_price: totalAmount,
         purchase_price: unitPurchasePrice,
         is_bar_phone: Boolean(product.is_bar_phone),
         is_accessory: Boolean(product.is_accessory)
-      });
+      };
+
+      const docRef = await addDoc(collection(db, 'sales'), salePayload);
+      const createdSale: Sale = { id: docRef.id, ...salePayload };
+      try {
+        const existingLocal = JSON.parse(localStorage.getItem('mehedy_telecom_sales_memos') || '[]');
+        localStorage.setItem('mehedy_telecom_sales_memos', JSON.stringify([createdSale, ...existingLocal.filter((s: Sale) => s.id !== createdSale.id)]));
+      } catch (err) {
+        console.warn('Could not save sale memo to localStorage:', err);
+      }
 
       // 3. Decrease stock
       const stockUpdate: any = {
@@ -1560,6 +1676,7 @@ export default function App() {
       await updateDoc(doc(db, 'products', product.id), stockUpdate);
 
       setNewSale({
+        memo_number: '',
         customer_name: '',
         phone_number: '',
         application_id: '',
@@ -1568,13 +1685,19 @@ export default function App() {
         guarantor_number: '',
         product_id: '',
         imei: '',
+        imei2: '',
         color: '',
+        product_price: '',
+        discount: '0',
+        paid_amount: '',
         images: [],
         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
       });
+      setSaleImeiInput('');
       localStorage.removeItem('draft_newSale');
       setUploadProgress({});
       setIsSaleProductOpen(false);
+      setMemoModalSale(createdSale);
     } catch (error: any) {
       console.error('Failed to record sale:', error);
       alert(`Failed to record sale: ${error.message || 'Unknown error'}`);
@@ -1600,11 +1723,17 @@ export default function App() {
       }
 
       const unitPurchasePrice = Number(product.purchase_price) || 0;
-      const actualPrice = Number(cashSale.actual_sale_price);
+      const productPrice = cashSale.product_price !== '' ? Number(cashSale.product_price) : (Number(product.selling_price) || Number(cashSale.actual_sale_price) || 0);
+      const discount = Number(cashSale.discount || 0);
+      const actualPrice = cashSale.actual_sale_price !== '' ? Number(cashSale.actual_sale_price) : Math.max(0, productPrice - discount);
+      const paidAmount = cashSale.paid_amount !== '' ? Number(cashSale.paid_amount) : actualPrice;
+      const dueAmount = Math.max(0, actualPrice - paidAmount);
       const profit = actualPrice - unitPurchasePrice;
+      const memoNumber = (cashSale.memo_number || '').trim() || generateMemoNumber();
 
       const soldImei = (cashSale.imei || '').trim();
       const matchedUnit = product.imei_units?.find(u => u.imei1 === soldImei || u.imei2 === soldImei);
+      const resolvedImei2 = (cashSale.imei2 || '').trim() || (matchedUnit ? (matchedUnit.imei1 === soldImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '');
       const remainingUnits = (product.imei_units || []).filter(u => u !== matchedUnit && u.imei1 !== soldImei && u.imei2 !== soldImei);
       const remainingImeis = (product.imeis || []).filter(i => {
         if (matchedUnit) {
@@ -1617,29 +1746,44 @@ export default function App() {
         ? remainingUnits.length
         : Math.max(0, (product.quantity || 1) - 1);
 
-      await addDoc(collection(db, 'sales'), {
-        customer_name: 'Cash Sale',
-        phone_number: 'N/A',
-        application_id: 'N/A',
+      const salePayload = {
+        memo_number: memoNumber,
+        customer_name: (cashSale.customer_name || '').trim() || 'Cash Sale',
+        phone_number: (cashSale.phone_number || '').trim() || 'N/A',
+        application_id: 'CASH',
         nid_number: 'N/A',
-        address: 'N/A',
+        address: (cashSale.address || '').trim() || 'N/A',
         guarantor_number: 'N/A',
         product_id: product.id,
         product_name: product.name,
         color: cashSale.color || matchedUnit?.color || (soldImei && product.imei_colors?.[soldImei]) || product.color || '',
         imei: soldImei,
-        imei2: matchedUnit ? (matchedUnit.imei1 === soldImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '',
+        imei2: resolvedImei2,
         ram: product.ram || '',
         rom: product.rom || '',
-        image_file_ids: [],
+        image_file_ids: [] as string[],
         sale_date: new Date(cashSale.sale_date).toISOString(),
         profit: profit,
+        product_price: productPrice,
+        discount: discount,
+        total_amount: actualPrice,
+        paid_amount: paidAmount,
+        due_amount: dueAmount,
         actual_sale_price: actualPrice,
         purchase_price: unitPurchasePrice,
         is_cash_sale: true,
         is_bar_phone: Boolean(product.is_bar_phone),
         is_accessory: Boolean(product.is_accessory)
-      });
+      };
+
+      const docRef = await addDoc(collection(db, 'sales'), salePayload);
+      const createdSale: Sale = { id: docRef.id, ...salePayload };
+      try {
+        const existingLocal = JSON.parse(localStorage.getItem('mehedy_telecom_sales_memos') || '[]');
+        localStorage.setItem('mehedy_telecom_sales_memos', JSON.stringify([createdSale, ...existingLocal.filter((s: Sale) => s.id !== createdSale.id)]));
+      } catch (err) {
+        console.warn('Could not save cash sale memo to localStorage:', err);
+      }
 
       const stockUpdate: any = {
         quantity: newStockQuantity,
@@ -1650,13 +1794,25 @@ export default function App() {
       await updateDoc(doc(db, 'products', product.id), stockUpdate);
 
       setCashSale({ 
+        memo_number: '',
+        customer_name: '',
+        phone_number: '',
+        address: '',
         product_id: '', 
+        imei: '',
+        imei2: '',
+        color: '',
+        product_price: '',
+        discount: '0',
         actual_sale_price: '',
+        paid_amount: '',
         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm") 
       });
+      setCashImeiInput('');
       localStorage.removeItem('draft_cashSale');
       setIsCashSaleOpen(false);
       setIsSaleProductOpen(false);
+      setMemoModalSale(createdSale);
     } catch (error) {
       console.error('Failed to record cash sale:', error);
     } finally {
@@ -1728,7 +1884,8 @@ export default function App() {
         application_id: editingSale.application_id || editingSale.nid_number || '',
         nid_number: editingSale.application_id || editingSale.nid_number || '',
         address: editingSale.address,
-        guarantor_number: editingSale.guarantor_number,
+        guarantor_number: editingSale.emi_app ?? editingSale.guarantor_number ?? '',
+        emi_app: editingSale.emi_app ?? editingSale.guarantor_number ?? '',
         profit: Number(editingSale.profit),
         actual_sale_price: Number(editingSale.actual_sale_price || 0),
         sale_date: new Date(editingSale.sale_date).toISOString(),
@@ -1821,6 +1978,19 @@ export default function App() {
     return [...products].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || 0);
   }, [products]);
 
+  // Products available for EMI / Regular Sell (strictly excludes Bar Phones and Accessories)
+  const emiSaleProducts = useMemo(() => {
+    return sortedProducts.filter(
+      p =>
+        !p.is_bar_phone &&
+        !p.is_accessory &&
+        !isBarPhoneSale(
+          { is_bar_phone: p.is_bar_phone, is_accessory: p.is_accessory, product_id: p.id, product_name: p.name },
+          products
+        )
+    );
+  }, [sortedProducts, products]);
+
   // Existing products filtered specifically for Add Product modal based on category (Brand New vs Bar Phone vs Used)
   const addModalExistingProducts = useMemo(() => {
     if (newProduct.is_bar_phone) {
@@ -1873,15 +2043,23 @@ export default function App() {
     }
 
     if (!saleSearch) return result;
-    const search = saleSearch.toLowerCase();
-    return result.filter(s => 
-      s.customer_name.toLowerCase().includes(search) ||
-      s.phone_number.includes(search) ||
-      (s.product_name && s.product_name.toLowerCase().includes(search)) ||
-      (s.imei && s.imei.toLowerCase().includes(search)) ||
-      (s.application_id && s.application_id.toLowerCase().includes(search)) ||
-      (s.nid_number && s.nid_number.toLowerCase().includes(search))
-    );
+    const search = saleSearch.toLowerCase().trim();
+    return result.filter(s => {
+      const memoNo = getSaleMemoNumber(s).toLowerCase();
+      return (
+        (s.customer_name && s.customer_name.toLowerCase().includes(search)) ||
+        (s.phone_number && s.phone_number.toLowerCase().includes(search)) ||
+        memoNo.includes(search) ||
+        (s.memo_number && s.memo_number.toLowerCase().includes(search)) ||
+        (s.product_name && s.product_name.toLowerCase().includes(search)) ||
+        (s.imei && s.imei.toLowerCase().includes(search)) ||
+        (s.imei2 && s.imei2.toLowerCase().includes(search)) ||
+        (s.application_id && s.application_id.toLowerCase().includes(search)) ||
+        (s.nid_number && s.nid_number.toLowerCase().includes(search)) ||
+        (s.emi_app && s.emi_app.toLowerCase().includes(search)) ||
+        (s.guarantor_number && s.guarantor_number.toLowerCase().includes(search))
+      );
+    });
   }, [sales, saleSearch, saleCategoryFilter, products]);
 
   const monthlyReportStats = useMemo(() => {
@@ -2462,9 +2640,11 @@ export default function App() {
                   
                   <button 
                     onClick={() => {
+                      const nextMemo = generateMemoNumber();
                       setSaleImeiInput('');
                       setCashImeiInput('');
                       setNewSale({
+                        memo_number: nextMemo,
                         customer_name: '',
                         phone_number: '',
                         application_id: '',
@@ -2473,21 +2653,33 @@ export default function App() {
                         guarantor_number: '',
                         product_id: '',
                         imei: '',
+                        imei2: '',
                         color: '',
+                        product_price: '',
+                        discount: '0',
+                        paid_amount: '',
                         images: [],
                         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
                       });
                       setCashSale({
+                        memo_number: nextMemo,
+                        customer_name: '',
+                        phone_number: '',
+                        address: '',
                         product_id: '',
                         imei: '',
+                        imei2: '',
                         color: '',
+                        product_price: '',
+                        discount: '0',
                         actual_sale_price: '',
+                        paid_amount: '',
                         sale_date: format(new Date(), "yyyy-MM-dd'T'HH:mm")
                       });
                       setSaleTab('emi');
                       setIsSaleProductOpen(true);
                     }}
-                    className="flex items-center justify-center gap-2 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100"
+                    className="flex items-center justify-center gap-2 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 cursor-pointer"
                   >
                     <ShoppingCart className="w-5 h-5" /> Sell Product
                   </button>
@@ -2952,7 +3144,10 @@ export default function App() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-mono">
+                              {getSaleMemoNumber(sale)}
+                            </span>
                             <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded font-mono">
                               {format(parseISO(sale.sale_date), 'dd MMM')}
                             </span>
@@ -2960,16 +3155,31 @@ export default function App() {
                               {format(parseISO(sale.sale_date), 'hh:mm a')}
                             </span>
                             {sale.customer_name && (
-                              <span className="text-[10px] text-gray-500">
+                              <span className="text-[10px] text-gray-500 font-medium">
                                 • {sale.customer_name}
+                              </span>
+                            )}
+                            {sale.imei && (
+                              <span className="text-[10px] text-gray-500 font-mono">
+                                • IMEI: {sale.imei}
                               </span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="font-black text-emerald-600 text-lg">
-                            ৳{calculateSalePrice(sale).toLocaleString()}
-                          </span>
+                          <div className="flex items-center justify-end gap-3">
+                            <span className="font-black text-emerald-600 text-lg">
+                              ৳{calculateSalePrice(sale).toLocaleString()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setMemoModalSale(sale)}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>মেমো দেখুন / Print</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -3804,18 +4014,25 @@ export default function App() {
       <Modal 
         isOpen={isSaleProductOpen} 
         onClose={() => setIsSaleProductOpen(false)} 
-        title={saleTab === 'emi' ? "Sell Product (EMI / Regular)" : "Sell Product (Cash Sale)"}
+        title={
+          saleTab === 'emi'
+            ? "Sell Product (EMI / Regular Sell & Cash Memo)"
+            : saleTab === 'cash'
+              ? "Sell Product (Cash Sell & Cash Memo)"
+              : "Sales History & Cash Memo Reprint (বিক্রির তালিকা)"
+        }
+        maxWidthClass="max-w-3xl"
       >
         {/* Sale Type Selector Tabs */}
         <div className="mb-6">
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-            Select Sale Type (বিক্রয়ের ধরণ)
+            Select Action (বিক্রয়ের ধরণ বা পুরনো মেমো প্রিন্ট)
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
               type="button"
               onClick={() => setSaleTab('emi')}
-              className={`p-3 sm:p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all text-left cursor-pointer ${
+              className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 transition-all text-left cursor-pointer ${
                 saleTab === 'emi'
                   ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-sm ring-1 ring-emerald-500'
                   : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
@@ -3826,14 +4043,14 @@ export default function App() {
               </div>
               <div>
                 <div className="font-bold text-sm leading-tight">EMI / Regular Sell</div>
-                <div className="text-[11px] text-gray-500">কিস্তি ও ডকুমেন্টসহ</div>
+                <div className="text-[11px] text-gray-500">কিস্তি ও ক্যাশ মেমো</div>
               </div>
             </button>
 
             <button
               type="button"
               onClick={() => setSaleTab('cash')}
-              className={`p-3 sm:p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all text-left cursor-pointer ${
+              className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 transition-all text-left cursor-pointer ${
                 saleTab === 'cash'
                   ? 'border-orange-500 bg-orange-50/80 text-orange-950 shadow-sm ring-1 ring-orange-400'
                   : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
@@ -3844,7 +4061,25 @@ export default function App() {
               </div>
               <div>
                 <div className="font-bold text-sm leading-tight">Cash Sell</div>
-                <div className="text-[11px] text-gray-500">দ্রুত নগদ মূল্যে বিক্রয়</div>
+                <div className="text-[11px] text-gray-500">নগদ বিক্রয় ও ক্যাশ মেমো</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSaleTab('history')}
+              className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 transition-all text-left cursor-pointer ${
+                saleTab === 'history'
+                  ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 shadow-sm ring-1 ring-indigo-500'
+                  : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${saleTab === 'history' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-sm leading-tight">Sales History / মেমো</div>
+                <div className="text-[11px] text-gray-500">পুরনো মেমো খুঁজুন ও প্রিন্ট</div>
               </div>
             </button>
           </div>
@@ -3882,8 +4117,8 @@ export default function App() {
                       setSaleImeiInput(val);
                       const trimmed = val.trim();
                       if (!trimmed) {
-                        // User cleared IMEI -> form completely blank
                         setNewSale(prev => ({
+                          memo_number: prev.memo_number || generateMemoNumber(),
                           customer_name: '',
                           phone_number: '',
                           application_id: '',
@@ -3892,22 +4127,34 @@ export default function App() {
                           guarantor_number: '',
                           product_id: '',
                           imei: '',
+                          imei2: '',
                           color: '',
+                          product_price: '',
+                          discount: '0',
+                          paid_amount: '',
                           images: [],
                           sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                         }));
                       } else {
-                        const match = products.find(p => p.imeis?.includes(trimmed));
+                        const match = emiSaleProducts.find(p => p.imeis?.includes(trimmed) || p.imei_units?.some(u => u.imei1 === trimmed || u.imei2 === trimmed));
                         if (match) {
+                          const unit = match.imei_units?.find(u => u.imei1 === trimmed || u.imei2 === trimmed);
+                          const imei1Val = unit ? unit.imei1 : trimmed;
+                          const imei2Val = unit ? (unit.imei2 || '') : '';
                           setNewSale(prev => ({
                             ...prev,
+                            memo_number: prev.memo_number || generateMemoNumber(),
                             product_id: match.id,
-                            imei: trimmed,
-                            color: match.imei_colors?.[trimmed] || match.color || ''
+                            imei: imei1Val,
+                            imei2: imei2Val,
+                            color: unit?.color || match.imei_colors?.[trimmed] || match.color || '',
+                            product_price: String(match.selling_price),
+                            discount: '0',
+                            paid_amount: String(match.selling_price)
                           }));
                         } else if (newSale.product_id) {
-                          // While typing or changing IMEI away from matched product, blank out product info
                           setNewSale(prev => ({
+                            memo_number: prev.memo_number || generateMemoNumber(),
                             customer_name: '',
                             phone_number: '',
                             application_id: '',
@@ -3916,7 +4163,11 @@ export default function App() {
                             guarantor_number: '',
                             product_id: '',
                             imei: '',
+                            imei2: '',
                             color: '',
+                            product_price: '',
+                            discount: '0',
+                            paid_amount: '',
                             images: [],
                             sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                           }));
@@ -3929,16 +4180,25 @@ export default function App() {
                         e.preventDefault();
                         const imei = saleImeiInput.trim();
                         if (imei) {
-                          const match = products.find(p => p.imeis?.includes(imei));
+                          const match = emiSaleProducts.find(p => p.imeis?.includes(imei) || p.imei_units?.some(u => u.imei1 === imei || u.imei2 === imei));
                           if (match) {
+                            const unit = match.imei_units?.find(u => u.imei1 === imei || u.imei2 === imei);
+                            const imei1Val = unit ? unit.imei1 : imei;
+                            const imei2Val = unit ? (unit.imei2 || '') : '';
                             setNewSale(prev => ({
                               ...prev,
+                              memo_number: prev.memo_number || generateMemoNumber(),
                               product_id: match.id,
-                              imei: imei,
-                              color: match.imei_colors?.[imei] || match.color || ''
+                              imei: imei1Val,
+                              imei2: imei2Val,
+                              color: unit?.color || match.imei_colors?.[imei] || match.color || '',
+                              product_price: String(match.selling_price),
+                              discount: '0',
+                              paid_amount: String(match.selling_price)
                             }));
                           } else {
                             setNewSale(prev => ({
+                              memo_number: prev.memo_number || generateMemoNumber(),
                               customer_name: '',
                               phone_number: '',
                               application_id: '',
@@ -3947,7 +4207,11 @@ export default function App() {
                               guarantor_number: '',
                               product_id: '',
                               imei: '',
+                              imei2: '',
                               color: '',
+                              product_price: '',
+                              discount: '0',
+                              paid_amount: '',
                               images: [],
                               sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                             }));
@@ -3957,20 +4221,6 @@ export default function App() {
                               source: 'sale'
                             });
                           }
-                        } else {
-                          setNewSale(prev => ({
-                            customer_name: '',
-                            phone_number: '',
-                            application_id: '',
-                            nid_number: '',
-                            address: '',
-                            guarantor_number: '',
-                            product_id: '',
-                            imei: '',
-                            color: '',
-                            images: [],
-                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                          }));
                         }
                       }
                     }}
@@ -3988,13 +4238,14 @@ export default function App() {
                 {newSale.imei && (
                   <div className="mt-2.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
                     <span className="text-xs text-emerald-800 font-bold font-mono">
-                      ✓ Scanned EMI IMEI: {newSale.imei}
+                      ✓ IMEI 1: {newSale.imei} {newSale.imei2 ? `| IMEI 2: ${newSale.imei2}` : ''}
                     </span>
                     <button 
                       type="button" 
                       onClick={() => {
                         setSaleImeiInput('');
                         setNewSale(prev => ({
+                          memo_number: prev.memo_number || generateMemoNumber(),
                           customer_name: '',
                           phone_number: '',
                           application_id: '',
@@ -4003,7 +4254,11 @@ export default function App() {
                           guarantor_number: '',
                           product_id: '',
                           imei: '',
+                          imei2: '',
                           color: '',
+                          product_price: '',
+                          discount: '0',
+                          paid_amount: '',
                           images: [],
                           sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                         }));
@@ -4016,14 +4271,15 @@ export default function App() {
                 )}
               </div>
 
-              {/* Searchable Product Combobox */}
+              {/* Searchable Product Combobox (Smartphones only - excludes Bar Phones) */}
               <ProductSelectCombobox
-                products={sortedProducts}
+                products={emiSaleProducts}
                 selectedProductId={newSale.product_id}
                 onSelect={(selectedId) => {
                   if (!selectedId) {
                     setSaleImeiInput('');
                     setNewSale(prev => ({
+                      memo_number: prev.memo_number || generateMemoNumber(),
                       customer_name: '',
                       phone_number: '',
                       application_id: '',
@@ -4032,22 +4288,34 @@ export default function App() {
                       guarantor_number: '',
                       product_id: '',
                       imei: '',
+                      imei2: '',
                       color: '',
+                      product_price: '',
+                      discount: '0',
+                      paid_amount: '',
                       images: [],
                       sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                     }));
                     return;
                   }
-                  const matchedProd = products.find(p => p.id === selectedId);
+                  const matchedProd = emiSaleProducts.find(p => p.id === selectedId);
+                  const firstUnit = matchedProd?.imei_units?.[0];
                   const selectedImei = matchedProd?.imeis?.includes(saleImeiInput.trim())
                     ? saleImeiInput.trim()
-                    : (matchedProd?.imeis?.[0] || '');
+                    : (firstUnit?.imei1 || matchedProd?.imeis?.[0] || '');
+                  const matchedUnit = matchedProd?.imei_units?.find(u => u.imei1 === selectedImei || u.imei2 === selectedImei) || firstUnit;
+                  const imei2Val = matchedUnit ? (matchedUnit.imei1 === selectedImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '';
                   setSaleImeiInput(selectedImei);
                   setNewSale(prev => ({
                     ...prev,
+                    memo_number: prev.memo_number || generateMemoNumber(),
                     product_id: selectedId,
                     imei: selectedImei,
-                    color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || ''
+                    imei2: imei2Val,
+                    color: matchedUnit?.color || (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
+                    product_price: matchedProd ? String(matchedProd.selling_price) : '',
+                    discount: '0',
+                    paid_amount: matchedProd ? String(matchedProd.selling_price) : ''
                   }));
                 }}
                 accentColor="blue"
@@ -4086,7 +4354,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Step 2: Customer Details & Images - ONLY unlocked when product_id is selected */}
+            {/* Step 2: Customer Details, Memo Pricing & Images */}
             {!newSale.product_id ? (
               <div className="p-8 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60 text-center space-y-2">
                 <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-100">
@@ -4101,36 +4369,72 @@ export default function App() {
               </div>
             ) : (
               <>
-                {/* Product Color */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Product Color (রং)</label>
-                  <input 
-                    type="text"
-                    value={newSale.color || products.find(p => p.id === newSale.product_id)?.color || ''}
-                    onChange={e => setNewSale({...newSale, color: e.target.value})}
-                    placeholder="e.g. Titanium Blue, Black, Green..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-medium"
-                  />
-                </div>
-
-                {/* Customer Information */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Information</h3>
-                    <div className="w-1/2">
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Sale Date & Time</label>
+                {/* Memo Number, Date & IMEI 1 / 2 */}
+                <div className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100 space-y-4">
+                  <h3 className="text-xs font-black text-blue-900 uppercase tracking-widest flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    মেমো ও ফোনের বিবরণ (Memo & Device Info)
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">মেমো নম্বর (Memo No)</label>
+                      <input 
+                        type="text"
+                        value={newSale.memo_number}
+                        onChange={e => setNewSale({...newSale, memo_number: e.target.value})}
+                        placeholder="MT-2026..."
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">তারিখ ও সময় (Sale Date & Time)</label>
                       <input 
                         required
                         type="datetime-local"
                         value={newSale.sale_date}
                         onChange={e => setNewSale({...newSale, sale_date: e.target.value})}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">IMEI 1</label>
+                      <input 
+                        type="text"
+                        value={newSale.imei}
+                        onChange={e => setNewSale({...newSale, imei: e.target.value})}
+                        placeholder="IMEI 1 নম্বর"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">IMEI 2</label>
+                      <input 
+                        type="text"
+                        value={newSale.imei2}
+                        onChange={e => setNewSale({...newSale, imei2: e.target.value})}
+                        placeholder="IMEI 2 নম্বর (যদি থাকে)"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-mono"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-gray-700 mb-1">ফোনের রং (Product Color)</label>
+                      <input 
+                        type="text"
+                        value={newSale.color || products.find(p => p.id === newSale.product_id)?.color || ''}
+                        onChange={e => setNewSale({...newSale, color: e.target.value})}
+                        placeholder="e.g. Titanium Blue, Black, Green..."
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-medium"
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Customer Information */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">ক্রেতার তথ্য (Customer Information)</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Customer Name</label>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">ক্রেতার নাম (Customer Name)</label>
                       <input 
                         required
                         type="text"
@@ -4141,7 +4445,7 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Phone Number (Bkash)</label>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">মোবাইল নম্বর (Phone Number)</label>
                       <input 
                         required
                         type="tel"
@@ -4163,18 +4467,99 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Guarantor Phone</label>
-                      <input 
-                        type="tel"
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-bold text-gray-700">Apps (কিস্তির অ্যাপ)</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatingEmiApp(prev => !prev)}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{isCreatingEmiApp ? 'বন্ধ করুন' : 'নতুন App তৈরি করুন'}</span>
+                        </button>
+                      </div>
+
+                      {isCreatingEmiApp && (
+                        <div className="mb-2.5 p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newEmiAppName}
+                              onChange={e => setNewEmiAppName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleCreateEmiApp((createdName) => setNewSale({ ...newSale, guarantor_number: createdName }));
+                                }
+                              }}
+                              placeholder="নতুন অ্যাপের নাম লিখুন (যেমন: PalmPay, Momo...)"
+                              className="flex-1 px-3 py-2 rounded-lg border border-blue-200 bg-white text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleCreateEmiApp((createdName) => setNewSale({ ...newSale, guarantor_number: createdName }))}
+                              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+                            >
+                              Save App
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <select
                         value={newSale.guarantor_number}
-                        onChange={e => setNewSale({...newSale, guarantor_number: e.target.value})}
-                        placeholder="জামিনদারের মোবাইল নম্বর"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
+                        onChange={e => setNewSale({ ...newSale, guarantor_number: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-gray-800"
+                      >
+                        <option value="">-- কিস্তির অ্যাপ সিলেক্ট করুন (Select App) --</option>
+                        {emiApps.map(appName => (
+                          <option key={appName} value={appName}>
+                            {appName}
+                          </option>
+                        ))}
+                        {newSale.guarantor_number && !emiApps.includes(newSale.guarantor_number) && (
+                          <option value={newSale.guarantor_number}>{newSale.guarantor_number}</option>
+                        )}
+                      </select>
+
+                      {emiApps.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                          {emiApps.map(appName => {
+                            const isSelected = newSale.guarantor_number === appName;
+                            return (
+                              <span
+                                key={appName}
+                                onClick={() => setNewSale({ ...newSale, guarantor_number: appName })}
+                                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
+                                }`}
+                              >
+                                <span>{appName}</span>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleDeleteEmiApp(appName);
+                                    if (newSale.guarantor_number === appName) {
+                                      setNewSale({ ...newSale, guarantor_number: '' });
+                                    }
+                                  }}
+                                  className={`ml-0.5 hover:text-red-500 ${isSelected ? 'text-blue-100 hover:text-white' : 'text-gray-400'}`}
+                                  title="অ্যাপ মুছে ফেলুন"
+                                >
+                                  &times;
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Full Address</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">ঠিকানা (Full Address)</label>
                     <textarea 
                       required
                       value={newSale.address}
@@ -4184,6 +4569,75 @@ export default function App() {
                     />
                   </div>
                 </div>
+
+                {/* Cash Memo Financial Details (Price, Discount, Total, Paid, Due) */}
+                {(() => {
+                  const defaultPrice = products.find(p => p.id === newSale.product_id)?.selling_price || 0;
+                  const pPrice = newSale.product_price !== '' ? Number(newSale.product_price) : defaultPrice;
+                  const disc = Number(newSale.discount || 0);
+                  const netTotal = Math.max(0, pPrice - disc);
+                  const paid = newSale.paid_amount !== '' ? Number(newSale.paid_amount) : netTotal;
+                  const due = Math.max(0, netTotal - paid);
+
+                  return (
+                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 space-y-3">
+                      <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest">
+                        টাকার হিসাব (Cash Memo Pricing)
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">পণ্যের দাম (Price ৳)</label>
+                          <input
+                            type="number"
+                            value={newSale.product_price !== '' ? newSale.product_price : String(defaultPrice)}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const nextTotal = Math.max(0, Number(val || 0) - Number(newSale.discount || 0));
+                              setNewSale({
+                                ...newSale,
+                                product_price: val,
+                                paid_amount: String(nextTotal)
+                              });
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">ডিসকাউন্ট (Discount ৳)</label>
+                          <input
+                            type="number"
+                            value={newSale.discount}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const nextTotal = Math.max(0, pPrice - Number(val || 0));
+                              setNewSale({
+                                ...newSale,
+                                discount: val,
+                                paid_amount: String(nextTotal)
+                              });
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">জমার পরিমাণ (Paid ৳)</label>
+                          <input
+                            type="number"
+                            value={newSale.paid_amount !== '' ? newSale.paid_amount : String(netTotal)}
+                            onChange={e => setNewSale({...newSale, paid_amount: e.target.value})}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-emerald-200/80 text-xs font-bold">
+                        <span className="text-emerald-950 text-sm">মোট টাকা (Total): ৳{netTotal.toLocaleString()}</span>
+                        <span className={due > 0 ? "text-rose-600 text-sm" : "text-emerald-700 text-sm"}>
+                          বকেয়া (Due): ৳{due.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Image Upload */}
                 <div className="space-y-3">
@@ -4236,14 +4690,14 @@ export default function App() {
                 <button 
                   disabled={isSubmitting}
                   type="submit"
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ShoppingCart className="w-5 h-5" /> Confirm EMI Sale</>}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Printer className="w-5 h-5" /> Confirm Sale & Open Cash Memo</>}
                 </button>
               </>
             )}
           </form>
-        ) : (
+        ) : saleTab === 'cash' ? (
           /* Cash Sale Form */
           <form onSubmit={handleCashSale} className="space-y-5">
             {/* Step 1: Scan IMEI or Select Product */}
@@ -4275,31 +4729,53 @@ export default function App() {
                       setCashImeiInput(val);
                       const trimmed = val.trim();
                       if (!trimmed) {
-                        // Cleared IMEI -> form completely blank
                         setCashSale(prev => ({
+                          memo_number: prev.memo_number || generateMemoNumber(),
+                          customer_name: '',
+                          phone_number: '',
+                          address: '',
                           product_id: '',
                           imei: '',
+                          imei2: '',
                           color: '',
+                          product_price: '',
+                          discount: '0',
                           actual_sale_price: '',
+                          paid_amount: '',
                           sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                         }));
                       } else {
-                        const match = products.find(p => p.imeis?.includes(trimmed));
+                        const match = products.find(p => p.imeis?.includes(trimmed) || p.imei_units?.some(u => u.imei1 === trimmed || u.imei2 === trimmed));
                         if (match) {
+                          const unit = match.imei_units?.find(u => u.imei1 === trimmed || u.imei2 === trimmed);
+                          const imei1Val = unit ? unit.imei1 : trimmed;
+                          const imei2Val = unit ? (unit.imei2 || '') : '';
                           setCashSale(prev => ({
                             ...prev,
+                            memo_number: prev.memo_number || generateMemoNumber(),
                             product_id: match.id,
-                            imei: trimmed,
-                            color: match.imei_colors?.[trimmed] || match.color || '',
-                            actual_sale_price: String(match.selling_price)
+                            imei: imei1Val,
+                            imei2: imei2Val,
+                            color: unit?.color || match.imei_colors?.[trimmed] || match.color || '',
+                            product_price: String(match.selling_price),
+                            discount: '0',
+                            actual_sale_price: String(match.selling_price),
+                            paid_amount: String(match.selling_price)
                           }));
                         } else if (cashSale.product_id) {
-                          // While typing or changing IMEI away from matched product, blank out product info
                           setCashSale(prev => ({
+                            memo_number: prev.memo_number || generateMemoNumber(),
+                            customer_name: '',
+                            phone_number: '',
+                            address: '',
                             product_id: '',
                             imei: '',
+                            imei2: '',
                             color: '',
+                            product_price: '',
+                            discount: '0',
                             actual_sale_price: '',
+                            paid_amount: '',
                             sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                           }));
                         }
@@ -4311,21 +4787,37 @@ export default function App() {
                         e.preventDefault();
                         const imei = cashImeiInput.trim();
                         if (imei) {
-                          const match = products.find(p => p.imeis?.includes(imei));
+                          const match = products.find(p => p.imeis?.includes(imei) || p.imei_units?.some(u => u.imei1 === imei || u.imei2 === imei));
                           if (match) {
+                            const unit = match.imei_units?.find(u => u.imei1 === imei || u.imei2 === imei);
+                            const imei1Val = unit ? unit.imei1 : imei;
+                            const imei2Val = unit ? (unit.imei2 || '') : '';
                             setCashSale(prev => ({
                               ...prev,
+                              memo_number: prev.memo_number || generateMemoNumber(),
                               product_id: match.id,
-                              imei: imei,
-                              color: match.imei_colors?.[imei] || match.color || '',
-                              actual_sale_price: String(match.selling_price)
+                              imei: imei1Val,
+                              imei2: imei2Val,
+                              color: unit?.color || match.imei_colors?.[imei] || match.color || '',
+                              product_price: String(match.selling_price),
+                              discount: '0',
+                              actual_sale_price: String(match.selling_price),
+                              paid_amount: String(match.selling_price)
                             }));
                           } else {
                             setCashSale(prev => ({
+                              memo_number: prev.memo_number || generateMemoNumber(),
+                              customer_name: '',
+                              phone_number: '',
+                              address: '',
                               product_id: '',
                               imei: '',
+                              imei2: '',
                               color: '',
+                              product_price: '',
+                              discount: '0',
                               actual_sale_price: '',
+                              paid_amount: '',
                               sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                             }));
                             setNotAvailableImei({
@@ -4334,14 +4826,6 @@ export default function App() {
                               source: 'cashSale'
                             });
                           }
-                        } else {
-                          setCashSale(prev => ({
-                            product_id: '',
-                            imei: '',
-                            color: '',
-                            actual_sale_price: '',
-                            sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
-                          }));
                         }
                       }
                     }}
@@ -4359,17 +4843,25 @@ export default function App() {
                 {cashSale.imei && (
                   <div className="mt-2.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
                     <span className="text-xs text-emerald-800 font-bold font-mono">
-                      ✓ Scanned Cash IMEI: {cashSale.imei}
+                      ✓ IMEI 1: {cashSale.imei} {cashSale.imei2 ? `| IMEI 2: ${cashSale.imei2}` : ''}
                     </span>
                     <button 
                       type="button" 
                       onClick={() => {
                         setCashImeiInput('');
                         setCashSale(prev => ({
+                          memo_number: prev.memo_number || generateMemoNumber(),
+                          customer_name: '',
+                          phone_number: '',
+                          address: '',
                           product_id: '',
                           imei: '',
+                          imei2: '',
                           color: '',
+                          product_price: '',
+                          discount: '0',
                           actual_sale_price: '',
+                          paid_amount: '',
                           sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                         }));
                       }} 
@@ -4389,25 +4881,41 @@ export default function App() {
                   if (!selectedId) {
                     setCashImeiInput('');
                     setCashSale(prev => ({
+                      memo_number: prev.memo_number || generateMemoNumber(),
+                      customer_name: '',
+                      phone_number: '',
+                      address: '',
                       product_id: '',
                       imei: '',
+                      imei2: '',
                       color: '',
+                      product_price: '',
+                      discount: '0',
                       actual_sale_price: '',
+                      paid_amount: '',
                       sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                     }));
                     return;
                   }
                   const matchedProd = products.find(p => p.id === selectedId);
+                  const firstUnit = matchedProd?.imei_units?.[0];
                   const selectedImei = matchedProd?.imeis?.includes(cashImeiInput.trim())
                     ? cashImeiInput.trim()
-                    : (matchedProd?.imeis?.[0] || '');
+                    : (firstUnit?.imei1 || matchedProd?.imeis?.[0] || '');
+                  const matchedUnit = matchedProd?.imei_units?.find(u => u.imei1 === selectedImei || u.imei2 === selectedImei) || firstUnit;
+                  const imei2Val = matchedUnit ? (matchedUnit.imei1 === selectedImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '';
                   setCashImeiInput(selectedImei);
                   setCashSale(prev => ({
                     ...prev,
+                    memo_number: prev.memo_number || generateMemoNumber(),
                     product_id: selectedId,
                     imei: selectedImei,
-                    color: (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
-                    actual_sale_price: matchedProd ? String(matchedProd.selling_price) : ''
+                    imei2: imei2Val,
+                    color: matchedUnit?.color || (selectedImei && matchedProd?.imei_colors?.[selectedImei]) || matchedProd?.color || '',
+                    product_price: matchedProd ? String(matchedProd.selling_price) : '',
+                    discount: '0',
+                    actual_sale_price: matchedProd ? String(matchedProd.selling_price) : '',
+                    paid_amount: matchedProd ? String(matchedProd.selling_price) : ''
                   }));
                 }}
                 accentColor="emerald"
@@ -4446,7 +4954,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Step 2: Cash Sale Price & Profit - ONLY unlocked when product_id is selected */}
+            {/* Step 2: Cash Sale Customer, IMEI & Memo Pricing */}
             {!cashSale.product_id ? (
               <div className="p-8 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60 text-center space-y-2">
                 <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center mx-auto border border-orange-100">
@@ -4456,65 +4964,285 @@ export default function App() {
                   প্রথমে IMEI স্ক্যান করুন অথবা প্রোডাক্ট সিলেক্ট করুন
                 </p>
                 <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                  প্রোডাক্ট সিলেক্ট না করা পর্যন্ত নগদ বিক্রয়ের মূল্য ও লাভের কলাম খালি থাকবে।
+                  প্রোডাক্ট সিলেক্ট না করা পর্যন্ত নগদ বিক্রয়ের তথ্য ও ক্যাশ মেমোর কলাম খালি থাকবে।
                 </p>
               </div>
             ) : (
               <>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Product Color (রং)</label>
-                    <input 
-                      type="text"
-                      value={cashSale.color || products.find(p => p.id === cashSale.product_id)?.color || ''}
-                      onChange={e => setCashSale({...cashSale, color: e.target.value})}
-                      placeholder="e.g. Titanium Blue, Black, Green..."
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white font-medium"
-                    />
-                  </div>
-                  <div className="sm:w-1/2">
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Sale Date & Time</label>
-                    <input 
-                      required
-                      type="datetime-local"
-                      value={cashSale.sale_date}
-                      onChange={e => setCashSale({...cashSale, sale_date: e.target.value})}
-                      className="w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                {/* Memo No, Date, IMEI 1 & 2, Color */}
+                <div className="bg-orange-50/40 p-4 rounded-2xl border border-orange-100 space-y-3.5">
+                  <h3 className="text-xs font-black text-orange-900 uppercase tracking-widest flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-orange-600" />
+                    মেমো ও ফোনের বিবরণ (Memo & Device Info)
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">মেমো নম্বর (Memo No)</label>
+                      <input 
+                        type="text"
+                        value={cashSale.memo_number}
+                        onChange={e => setCashSale({...cashSale, memo_number: e.target.value})}
+                        placeholder="MT-2026..."
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">তারিখ ও সময় (Sale Date & Time)</label>
+                      <input 
+                        required
+                        type="datetime-local"
+                        value={cashSale.sale_date}
+                        onChange={e => setCashSale({...cashSale, sale_date: e.target.value})}
+                        className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">IMEI 1</label>
+                      <input 
+                        type="text"
+                        value={cashSale.imei}
+                        onChange={e => setCashSale({...cashSale, imei: e.target.value})}
+                        placeholder="IMEI 1 নম্বর"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">IMEI 2</label>
+                      <input 
+                        type="text"
+                        value={cashSale.imei2}
+                        onChange={e => setCashSale({...cashSale, imei2: e.target.value})}
+                        placeholder="IMEI 2 নম্বর (যদি থাকে)"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white font-mono"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-gray-700 mb-1">ফোনের রং (Product Color)</label>
+                      <input 
+                        type="text"
+                        value={cashSale.color || products.find(p => p.id === cashSale.product_id)?.color || ''}
+                        onChange={e => setCashSale({...cashSale, color: e.target.value})}
+                        placeholder="e.g. Titanium Blue, Black, Green..."
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm bg-white font-medium"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Actual Sale Price (প্রকৃত বিক্রয় মূল্য - ৳)</label>
-                  <input 
-                    required
-                    type="number"
-                    value={cashSale.actual_sale_price}
-                    onChange={e => setCashSale({...cashSale, actual_sale_price: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-base font-bold"
-                    placeholder="গ্রাহক কত টাকা প্রদান করেছেন লিখুন"
-                  />
-                </div>
-
-                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-emerald-800">Calculated Profit (মোট লাভ)</span>
-                    <span className="text-lg font-black text-emerald-600">
-                      ৳{Math.max(0, Number(cashSale.actual_sale_price || 0) - (products.find(p => p.id === cashSale.product_id)?.purchase_price || 0)).toLocaleString()}
-                    </span>
+                {/* Customer Details for Cash Memo */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">ক্রেতার তথ্য (Customer Details for Memo)</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">ক্রেতার নাম (Customer Name)</label>
+                      <input 
+                        type="text"
+                        value={cashSale.customer_name}
+                        onChange={e => setCashSale({...cashSale, customer_name: e.target.value})}
+                        placeholder="ক্রেতার নাম লিখুন"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">মোবাইল নম্বর (Mobile Number)</label>
+                      <input 
+                        type="tel"
+                        value={cashSale.phone_number}
+                        onChange={e => setCashSale({...cashSale, phone_number: e.target.value})}
+                        placeholder="017xxxxxxxx"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-gray-700 mb-1">ঠিকানা (Address)</label>
+                      <input 
+                        type="text"
+                        value={cashSale.address}
+                        onChange={e => setCashSale({...cashSale, address: e.target.value})}
+                        placeholder="ক্রেতার ঠিকানা লিখুন"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
+
+                {/* Price, Discount, Total, Paid Amount */}
+                {(() => {
+                  const defaultPrice = products.find(p => p.id === cashSale.product_id)?.selling_price || 0;
+                  const pPrice = cashSale.product_price !== '' ? Number(cashSale.product_price) : defaultPrice;
+                  const disc = Number(cashSale.discount || 0);
+                  const totalAmt = cashSale.actual_sale_price !== '' ? Number(cashSale.actual_sale_price) : Math.max(0, pPrice - disc);
+                  const paidAmt = cashSale.paid_amount !== '' ? Number(cashSale.paid_amount) : totalAmt;
+                  const dueAmt = Math.max(0, totalAmt - paidAmt);
+
+                  return (
+                    <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200 space-y-3.5">
+                      <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest">
+                        টাকার হিসাব (Price, Discount & Paid)
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">পণ্যের দাম (৳)</label>
+                          <input 
+                            type="number"
+                            value={cashSale.product_price !== '' ? cashSale.product_price : String(defaultPrice)}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const nextTotal = Math.max(0, Number(val || 0) - Number(cashSale.discount || 0));
+                              setCashSale({
+                                ...cashSale,
+                                product_price: val,
+                                actual_sale_price: String(nextTotal),
+                                paid_amount: String(nextTotal)
+                              });
+                            }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">ডিসকাউন্ট (৳)</label>
+                          <input 
+                            type="number"
+                            value={cashSale.discount}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const nextTotal = Math.max(0, pPrice - Number(val || 0));
+                              setCashSale({
+                                ...cashSale,
+                                discount: val,
+                                actual_sale_price: String(nextTotal),
+                                paid_amount: String(nextTotal)
+                              });
+                            }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">মোট টাকা (Total ৳)</label>
+                          <input 
+                            required
+                            type="number"
+                            value={cashSale.actual_sale_price}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCashSale({
+                                ...cashSale,
+                                actual_sale_price: val,
+                                paid_amount: val
+                              });
+                            }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-emerald-300 bg-white font-black text-emerald-900 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1">জমার পরিমাণ (Paid ৳)</label>
+                          <input 
+                            type="number"
+                            value={cashSale.paid_amount !== '' ? cashSale.paid_amount : String(totalAmt)}
+                            onChange={e => setCashSale({...cashSale, paid_amount: e.target.value})}
+                            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap justify-between items-center pt-2 border-t border-emerald-200/80 text-xs font-bold">
+                        <span className="text-emerald-800">
+                          মোট লাভ (Profit): <strong className="text-emerald-700 text-sm">৳{Math.max(0, totalAmt - (products.find(p => p.id === cashSale.product_id)?.purchase_price || 0)).toLocaleString()}</strong>
+                        </span>
+                        <span className={dueAmt > 0 ? "text-rose-600 text-sm" : "text-emerald-700 text-sm"}>
+                          বকেয়া (Due): ৳{dueAmt.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button 
                   disabled={isSubmitting}
                   type="submit"
-                  className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-100 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CreditCard className="w-5 h-5" /> Complete Cash Sale</>}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Printer className="w-5 h-5" /> Complete Cash Sale & Open Memo</>}
                 </button>
               </>
             )}
           </form>
+        ) : (
+          /* Sales History & Cash Memo Reprint Tab right inside Sell Product */
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                type="text"
+                value={saleSearch}
+                onChange={e => setSaleSearch(e.target.value)}
+                placeholder="ক্রেতার নাম, মোবাইল নম্বর, মেমো নম্বর অথবা IMEI লিখে খুঁজুন..."
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              />
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto space-y-2.5 pr-1">
+              {filteredSales.map((sale) => {
+                const memoNo = getSaleMemoNumber(sale);
+                const totalAmt = sale.total_amount ?? calculateSalePrice(sale);
+                return (
+                  <div
+                    key={sale.id}
+                    className="p-3.5 bg-white border border-gray-200 rounded-2xl hover:border-indigo-300 shadow-2xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {memoNo}
+                        </span>
+                        <h4 className="font-bold text-gray-900 text-sm">{sale.customer_name || 'Walk-in Customer'}</h4>
+                        {(sale.emi_app || (sale.guarantor_number && sale.guarantor_number !== 'N/A')) && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                            App: {sale.emi_app || sale.guarantor_number}
+                          </span>
+                        )}
+                        {sale.phone_number && sale.phone_number !== 'N/A' && (
+                          <span className="text-xs font-mono text-gray-600">• {sale.phone_number}</span>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-800">
+                        {sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''} {sale.color ? `• ${sale.color}` : ''}
+                      </p>
+                      <div className="flex items-center gap-3 flex-wrap text-[11px] text-gray-500 font-mono">
+                        {sale.imei && <span>IMEI 1: {sale.imei}</span>}
+                        {sale.imei2 && <span>IMEI 2: {sale.imei2}</span>}
+                        <span>• {format(parseISO(sale.sale_date), 'dd/MM/yyyy hh:mm a')}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm font-black text-emerald-600">৳{totalAmt.toLocaleString()}</p>
+                        {sale.due_amount && sale.due_amount > 0 ? (
+                          <p className="text-[10px] font-bold text-rose-600">বকেয়া: ৳{sale.due_amount.toLocaleString()}</p>
+                        ) : (
+                          <p className="text-[10px] font-bold text-emerald-700">পরিশোধিত</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMemoModalSale(sale)}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>মেমো দেখুন / Print</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredSales.length === 0 && (
+                <div className="text-center py-10 text-gray-500 text-sm">
+                  কোনো বিক্রির তথ্য পাওয়া যায়নি।
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </Modal>
 
@@ -5242,26 +5970,20 @@ export default function App() {
           setIsAddProductOpen(true);
         }}
         onDeleteProduct={isReadOnly ? undefined : handleDeleteProduct}
-        onSellProduct={isReadOnly ? undefined : (product, isCash) => {
+        onSellProduct={isReadOnly ? undefined : (product) => {
           setIsBarPhoneModalOpen(false);
-          if (isCash) {
-            setCashSale(prev => ({
-              ...prev,
-              product_id: product.id,
-              actual_sale_price: String(product.selling_price || ''),
-              color: product.color || ''
-            }));
-            setSaleTab('cash');
-            setIsSaleProductOpen(true);
-          } else {
-            setNewSale(prev => ({
-              ...prev,
-              product_id: product.id,
-              color: product.color || ''
-            }));
-            setSaleTab('emi');
-            setIsSaleProductOpen(true);
-          }
+          setCashSale(prev => ({
+            ...prev,
+            memo_number: prev.memo_number || generateMemoNumber(),
+            product_id: product.id,
+            product_price: String(product.selling_price || ''),
+            discount: '0',
+            actual_sale_price: String(product.selling_price || ''),
+            paid_amount: String(product.selling_price || ''),
+            color: product.color || ''
+          }));
+          setSaleTab('cash');
+          setIsSaleProductOpen(true);
         }}
         onOpenSales={() => {
           setIsBarPhoneModalOpen(false);
@@ -5435,7 +6157,7 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm"
               >
                 <option value="">Select a product...</option>
-                {sortedProducts.map(p => (
+                {emiSaleProducts.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.condition === 'used' ? '[USED] ' : ''}{p.name} {p.ram ? `(${p.ram}/${p.rom})` : ''} — ৳{p.selling_price.toLocaleString()}
                   </option>
@@ -5570,11 +6292,12 @@ export default function App() {
         </div>
       </Modal>
 
-      {/* Sale List Modal */}
+      {/* Sale List Modal (Sales History / বিক্রির তালিকা) */}
       <Modal 
         isOpen={isSaleListOpen} 
         onClose={() => setIsSaleListOpen(false)} 
-        title="All Sales History"
+        title="Sales History (বিক্রির তালিকা ও ক্যাশ মেমো প্রিন্ট)"
+        maxWidthClass="max-w-4xl"
       >
         <div className="space-y-4">
           {/* Category Filter Pills */}
@@ -5625,77 +6348,105 @@ export default function App() {
             </button>
           </div>
 
+          {/* Search & Filter Bar */}
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500" />
             <input 
               type="text"
               value={saleSearch}
               onChange={e => setSaleSearch(e.target.value)}
-              placeholder="Search by name, phone, or Application ID..."
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="ক্রেতার নাম, মোবাইল নম্বর, মেমো নম্বর (MT-...) অথবা IMEI নম্বর লিখে খুঁজুন..."
+              className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium"
             />
           </div>
 
           <div className="space-y-3">
-            {filteredSales.map((sale) => (
-              <button 
-                key={sale.id}
-                onClick={() => setSelectedSale(sale)}
-                className="w-full flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:border-blue-200 hover:shadow-md transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <CustomerAvatar fileId={sale.image_file_ids?.[0]} />
-                  <div className="text-left">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
-                      {isBarPhoneSale(sale, products) && (
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 border border-cyan-200">
-                          Bar Phone
+            {filteredSales.map((sale) => {
+              const memoNo = getSaleMemoNumber(sale);
+              const totalPrice = sale.total_amount ?? calculateSalePrice(sale);
+              const paidAmt = sale.paid_amount ?? totalPrice;
+              const dueAmt = sale.due_amount ?? Math.max(0, totalPrice - paidAmt);
+
+              return (
+                <div 
+                  key={sale.id}
+                  onClick={() => setSelectedSale(sale)}
+                  className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white border border-gray-200 rounded-2xl hover:border-indigo-300 hover:shadow-md transition-all group cursor-pointer"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <CustomerAvatar fileId={sale.image_file_ids?.[0]} />
+                    <div className="text-left space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {memoNo}
                         </span>
-                      )}
-                      {isAccessorySale(sale, products) && (
-                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200">
-                          Accessory
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500">{sale.phone_number}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1">
-                      <span>{sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''}</span>
-                      {sale.color && sale.color !== '' && (
-                        <div 
-                          className={`w-2 h-2 rounded-full shadow border-white border ${
-                            sale.color === 'Black' ? 'bg-black' :
-                            sale.color === 'Titanium Gray' ? 'bg-slate-500' :
-                            sale.color === 'Blue' ? 'bg-blue-500' :
-                            sale.color === 'Gold' ? 'bg-yellow-500' :
-                            sale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
-                          }`}
-                          title={sale.color}
-                        />
+                        <h4 className="font-bold text-gray-900">{sale.customer_name}</h4>
+                        {(sale.emi_app || (sale.guarantor_number && sale.guarantor_number !== 'N/A')) && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                            App: {sale.emi_app || sale.guarantor_number}
+                          </span>
+                        )}
+                        {isBarPhoneSale(sale, products) && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 border border-cyan-200">
+                            Bar Phone
+                          </span>
+                        )}
+                        {isAccessorySale(sale, products) && (
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200">
+                            Accessory
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 font-medium">
+                        মোবাইল: <span className="font-mono font-bold">{sale.phone_number}</span>
+                        {sale.address && sale.address !== 'N/A' ? ` • ${sale.address}` : ''}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-gray-800 font-semibold">
+                        <span>{sale.product_name} {(sale.ram || sale.rom) ? `(${sale.ram || ''}${sale.ram && sale.rom ? '/' : ''}${sale.rom || ''})` : ''}</span>
+                        {sale.color && sale.color !== '' && (
+                          <span className="text-[11px] text-gray-500">• {sale.color}</span>
+                        )}
+                      </div>
+                      {(sale.imei || sale.imei2) && (
+                        <div className="flex items-center gap-3 flex-wrap text-[11px] font-mono text-gray-500">
+                          {sale.imei && <span>IMEI 1: <strong className="text-gray-700">{sale.imei}</strong></span>}
+                          {sale.imei2 && <span>IMEI 2: <strong className="text-gray-700">{sale.imei2}</strong></span>}
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm font-black text-emerald-600">
-                      ৳{calculateSalePrice(sale).toLocaleString()}
-                    </p>
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">
-                      {format(parseISO(sale.sale_date), 'dd/MM/yyyy')}
-                    </p>
-                    <p className="text-[9px] text-gray-400">
-                      {format(parseISO(sale.sale_date), 'hh:mm a')}
-                    </p>
+                  <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-gray-100">
+                    <div className="text-left sm:text-right">
+                      <p className="text-sm font-black text-emerald-600">
+                        ৳{totalPrice.toLocaleString()}
+                      </p>
+                      {dueAmt > 0 && (
+                        <p className="text-[10px] font-bold text-rose-600">
+                          বকেয়া: ৳{dueAmt.toLocaleString()}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-500 font-medium">
+                        {format(parseISO(sale.sale_date), 'dd/MM/yyyy hh:mm a')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMemoModalSale(sale);
+                      }}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>মেমো দেখুন / Print</span>
+                    </button>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
                 </div>
-              </button>
-            ))}
+              );
+            })}
             {filteredSales.length === 0 && (
               <div className="text-center py-12 text-gray-500">
-                No sales records found.
+                কোনো বিক্রির তথ্য পাওয়া যায়নি (No sales records found).
               </div>
             )}
           </div>
@@ -5706,7 +6457,7 @@ export default function App() {
       <Modal 
         isOpen={!!selectedSale} 
         onClose={() => setSelectedSale(null)} 
-        title="Sale Details"
+        title="Sale Details (বিক্রয়ের বিস্তারিত তথ্য)"
       >
         {selectedSale && (
           <div className="space-y-8">
@@ -5714,7 +6465,12 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <CustomerAvatar fileId={selectedSale.image_file_ids?.[0]} />
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</h3>
+                  <div>
+                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</h3>
+                    <span className="text-xs font-mono font-bold text-indigo-600">
+                      Memo: {getSaleMemoNumber(selectedSale)}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
@@ -5745,12 +6501,12 @@ export default function App() {
                       <p className="font-bold text-gray-900">{selectedSale.address}</p>
                     </div>
                   </div>
-                  {selectedSale.guarantor_number && (
+                  {(selectedSale.emi_app || (selectedSale.guarantor_number && selectedSale.guarantor_number !== 'N/A')) && (
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="w-5 h-5 text-blue-500 mt-0.5" />
                       <div>
-                        <p className="text-xs text-gray-500">Guarantor Phone</p>
-                        <p className="font-bold text-gray-900">{selectedSale.guarantor_number}</p>
+                        <p className="text-xs text-gray-500">Apps (কিস্তির অ্যাপ)</p>
+                        <p className="font-bold text-gray-900">{selectedSale.emi_app || selectedSale.guarantor_number}</p>
                       </div>
                     </div>
                   )}
@@ -5771,17 +6527,13 @@ export default function App() {
                         {selectedSale.color && selectedSale.color !== '' && (
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-gray-500">Color:</span>
-                            <div 
-                              className={`w-3 h-3 rounded-full shadow border-white border ${
-                                selectedSale.color === 'Black' ? 'bg-black' :
-                                selectedSale.color === 'Titanium Gray' ? 'bg-slate-500' :
-                                selectedSale.color === 'Blue' ? 'bg-blue-500' :
-                                selectedSale.color === 'Gold' ? 'bg-yellow-500' :
-                                selectedSale.color === 'Orange' ? 'bg-orange-500' : 'bg-transparent'
-                              }`}
-                              title={selectedSale.color}
-                            />
                             <span className="text-xs font-medium text-gray-700">{selectedSale.color}</span>
+                          </div>
+                        )}
+                        {(selectedSale.imei || selectedSale.imei2) && (
+                          <div className="text-xs font-mono text-gray-600 space-y-0.5 mt-1">
+                            {selectedSale.imei && <div>IMEI 1: <strong>{selectedSale.imei}</strong></div>}
+                            {selectedSale.imei2 && <div>IMEI 2: <strong>{selectedSale.imei2}</strong></div>}
                           </div>
                         )}
                       </div>
@@ -5790,10 +6542,20 @@ export default function App() {
                   <div className="flex items-start gap-3">
                     <TrendingUp className="w-5 h-5 text-emerald-500 mt-0.5" />
                     <div>
-                      <p className="text-xs text-gray-500">Selling Price</p>
+                      <p className="text-xs text-gray-500">Total Amount (মোট টাকা)</p>
                       <p className="font-black text-emerald-600 text-lg">
-                        ৳{calculateSalePrice(selectedSale).toLocaleString()}
+                        ৳{(selectedSale.total_amount ?? calculateSalePrice(selectedSale)).toLocaleString()}
                       </p>
+                      {(selectedSale.discount ?? 0) > 0 && (
+                        <p className="text-xs text-gray-500">
+                          পণ্যের দাম: ৳{(selectedSale.product_price ?? 0).toLocaleString()} | ছাড়: ৳{(selectedSale.discount ?? 0).toLocaleString()}
+                        </p>
+                      )}
+                      {selectedSale.paid_amount !== undefined && (
+                        <p className="text-xs font-semibold text-gray-700">
+                          জমা: ৳{selectedSale.paid_amount.toLocaleString()} | বকেয়া: ৳{(selectedSale.due_amount ?? 0).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -5843,6 +6605,13 @@ export default function App() {
                   <Eye className="w-3.5 h-3.5 text-amber-600" /> বিক্রয় রেকর্ড শুধু দেখার জন্য (View only)
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => setMemoModalSale(selectedSale)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" /> মেমো দেখুন / Print
+              </button>
               <button 
                 onClick={() => setSelectedSale(null)}
                 className="px-4 py-2 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
@@ -5909,6 +6678,25 @@ export default function App() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Apps (কিস্তির অ্যাপ)</label>
+              <select
+                value={editingSale.emi_app ?? editingSale.guarantor_number ?? ''}
+                onChange={e => setEditingSale({ ...editingSale, emi_app: e.target.value, guarantor_number: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold"
+              >
+                <option value="">-- কিস্তির অ্যাপ সিলেক্ট করুন (Select App) --</option>
+                {emiApps.map(appName => (
+                  <option key={appName} value={appName}>{appName}</option>
+                ))}
+                {(editingSale.emi_app || editingSale.guarantor_number) &&
+                  !emiApps.includes(editingSale.emi_app || editingSale.guarantor_number) && (
+                    <option value={editingSale.emi_app || editingSale.guarantor_number}>
+                      {editingSale.emi_app || editingSale.guarantor_number}
+                    </option>
+                  )}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -6718,24 +7506,39 @@ export default function App() {
               const match = products.find(p => p.imeis?.includes(imei) || p.imei_units?.some(u => u.imei1 === imei || u.imei2 === imei));
               if (match) {
                 const unit = match.imei_units?.find(u => u.imei1 === imei || u.imei2 === imei);
+                const imei1Val = unit ? unit.imei1 : imei;
+                const imei2Val = unit ? (unit.imei2 || '') : '';
                 const colorVariant = unit?.color || match.imei_colors?.[imei] || match.color || '';
-                setCashImeiInput(imei);
+                setCashImeiInput(imei1Val);
                 setCashSale(prev => ({
                   ...prev,
+                  memo_number: prev.memo_number || generateMemoNumber(),
                   product_id: match.id,
-                  imei: imei,
+                  imei: imei1Val,
+                  imei2: imei2Val,
                   color: colorVariant,
-                  actual_sale_price: String(match.selling_price)
+                  product_price: String(match.selling_price),
+                  discount: '0',
+                  actual_sale_price: String(match.selling_price),
+                  paid_amount: String(match.selling_price)
                 }));
                 setActiveScanner(null);
               } else {
                 setActiveScanner(null);
                 setCashImeiInput(imei);
                 setCashSale(prev => ({
+                  memo_number: prev.memo_number || generateMemoNumber(),
+                  customer_name: '',
+                  phone_number: '',
+                  address: '',
                   product_id: '',
                   imei: '',
+                  imei2: '',
                   color: '',
+                  product_price: '',
+                  discount: '0',
                   actual_sale_price: '',
+                  paid_amount: '',
                   sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                 }));
                 setNotAvailableImei({
@@ -6745,22 +7548,30 @@ export default function App() {
                 });
               }
             } else if (activeScanner === 'sale') {
-              const match = products.find(p => p.imeis?.includes(imei) || p.imei_units?.some(u => u.imei1 === imei || u.imei2 === imei));
+              const match = emiSaleProducts.find(p => p.imeis?.includes(imei) || p.imei_units?.some(u => u.imei1 === imei || u.imei2 === imei));
               if (match) {
                 const unit = match.imei_units?.find(u => u.imei1 === imei || u.imei2 === imei);
+                const imei1Val = unit ? unit.imei1 : imei;
+                const imei2Val = unit ? (unit.imei2 || '') : '';
                 const colorVariant = unit?.color || match.imei_colors?.[imei] || match.color || '';
-                setSaleImeiInput(imei);
+                setSaleImeiInput(imei1Val);
                 setNewSale(prev => ({
                   ...prev,
+                  memo_number: prev.memo_number || generateMemoNumber(),
                   product_id: match.id,
-                  imei: imei,
-                  color: colorVariant
+                  imei: imei1Val,
+                  imei2: imei2Val,
+                  color: colorVariant,
+                  product_price: String(match.selling_price),
+                  discount: '0',
+                  paid_amount: String(match.selling_price)
                 }));
                 setActiveScanner(null);
               } else {
                 setActiveScanner(null);
                 setSaleImeiInput(imei);
                 setNewSale(prev => ({
+                  memo_number: prev.memo_number || generateMemoNumber(),
                   customer_name: '',
                   phone_number: '',
                   application_id: '',
@@ -6769,7 +7580,11 @@ export default function App() {
                   guarantor_number: '',
                   product_id: '',
                   imei: '',
+                  imei2: '',
                   color: '',
+                  product_price: '',
+                  discount: '0',
+                  paid_amount: '',
                   images: [],
                   sale_date: prev.sale_date || format(new Date(), "yyyy-MM-dd'T'HH:mm")
                 }));
@@ -6812,6 +7627,13 @@ export default function App() {
           }}
         />
       )}
+
+      <CashMemoModal
+        isOpen={!!memoModalSale}
+        onClose={() => setMemoModalSale(null)}
+        sale={memoModalSale}
+        product={memoModalSale ? products.find(p => p.id === memoModalSale.product_id) : null}
+      />
     </div>
   );
 }
