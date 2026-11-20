@@ -1623,57 +1623,23 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                           )}
                         </div>
 
-                        {/* Right: Dynamic Rubber Stamp above Authorized Signature */}
-                        <div className="col-span-4 flex flex-col items-center justify-center pb-1">
-                          {!isEmiSale && outstanding === 0 ? (
-                            <div
-                              className="mt-rubber-stamp px-5 py-1.5 rounded-md text-center select-none"
-                              style={{
-                                borderColor: '#059669',
-                                color: '#047857',
-                                backgroundColor: 'rgba(236, 253, 245, 0.85)',
-                              }}
-                            >
-                              <div className="text-base font-black leading-none tracking-[0.22em]">
-                                PAID
-                              </div>
-                              <div className="text-[8.5px] font-bold tracking-wider uppercase mt-1">
-                                পরিশোধিত · {dateStr}
-                              </div>
+                        {/* Right: PAID Rubber Stamp raised cleanly above Authorized Signature */}
+                        <div className="col-span-4 flex flex-col items-center justify-center self-center pb-5">
+                          <div
+                            className="mt-rubber-stamp px-5 py-1.5 rounded-md text-center select-none"
+                            style={{
+                              borderColor: '#059669',
+                              color: '#047857',
+                              backgroundColor: 'rgba(236, 253, 245, 0.85)',
+                            }}
+                          >
+                            <div className="text-base font-black leading-none tracking-[0.22em]">
+                              PAID
                             </div>
-                          ) : isEmiSale ? (
-                            <div
-                              className="mt-rubber-stamp px-4 py-1.5 rounded-md text-center select-none"
-                              style={{
-                                borderColor: '#DC2626',
-                                color: '#DC2626',
-                                backgroundColor: 'rgba(254, 242, 242, 0.9)',
-                              }}
-                            >
-                              <div className="text-[15px] font-black leading-none tracking-[0.14em]">
-                                EMI / কিস্তি
-                              </div>
-                              <div className="memo-font-num text-[9px] font-extrabold mt-1">
-                                মাসিক: ৳ {formatMoney(effectiveMonthlyEmi)}
-                              </div>
+                            <div className="text-[8.5px] font-bold tracking-wider uppercase mt-1">
+                              পরিশোধিত · {dateStr}
                             </div>
-                          ) : (
-                            <div
-                              className="mt-rubber-stamp px-4 py-1.5 rounded-md text-center select-none"
-                              style={{
-                                borderColor: '#DC2626',
-                                color: '#DC2626',
-                                backgroundColor: 'rgba(254, 242, 242, 0.9)',
-                              }}
-                            >
-                              <div className="text-[15px] font-black leading-none tracking-[0.14em]">
-                                DUE / বকেয়া
-                              </div>
-                              <div className="memo-font-num text-[9px] font-extrabold mt-1">
-                                বকেয়া: ৳ {formatMoney(outstanding)}
-                              </div>
-                            </div>
-                          )}
+                          </div>
                         </div>
                       </div>
 
