@@ -189,6 +189,113 @@ const InvoiceBarcode: React.FC<{ value: string; height?: number }> = ({ value, h
   );
 };
 
+const MehedyTelecomLogo: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
+  if (compact) {
+    return (
+      <svg viewBox="0 0 44 44" className="w-8 h-8" aria-label="Mehedy Telecom">
+        <defs>
+          <linearGradient id="mtSwooshCompact" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#DC2626" />
+            <stop offset="100%" stopColor="#111827" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M5 17 C13 6, 31 6, 39 14"
+          fill="none"
+          stroke="url(#mtSwooshCompact)"
+          strokeWidth="3.2"
+          strokeLinecap="round"
+        />
+        <rect x="16" y="12" width="12" height="19" rx="2.2" fill="#111827" />
+        <rect x="18" y="14.5" width="8" height="12.5" rx="0.8" fill="#FFFFFF" />
+        <circle cx="22" cy="29.2" r="0.9" fill="#DC2626" />
+        <text
+          x="22"
+          y="40"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="900"
+          fontFamily="Plus Jakarta Sans, sans-serif"
+          fill="#DC2626"
+        >
+          MT
+        </text>
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 260 76"
+      className="w-full h-full max-w-[240px]"
+      role="img"
+      aria-label="Mehedy Telecom Logo"
+    >
+      <defs>
+        <linearGradient id="mtBrandArc" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#DC2626" />
+          <stop offset="55%" stopColor="#B91C1C" />
+          <stop offset="100%" stopColor="#111827" />
+        </linearGradient>
+      </defs>
+      {/* Top Swoosh & Smartphone Emblem */}
+      <path
+        d="M36 26 C72 4, 168 3, 214 20"
+        fill="none"
+        stroke="url(#mtBrandArc)"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M207 14 L216 20.5 L205 23.5"
+        fill="none"
+        stroke="#111827"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="116" y="6" width="16" height="24" rx="3" fill="#111827" />
+      <rect x="118.5" y="9" width="11" height="15.5" rx="1" fill="#F8FAFC" />
+      <circle cx="124" cy="27.2" r="1.2" fill="#DC2626" />
+      {/* Brand Wordmark */}
+      <text
+        x="4"
+        y="53"
+        fontSize="27"
+        fontWeight="900"
+        letterSpacing="-0.5"
+        fontFamily="Plus Jakarta Sans, sans-serif"
+        fill="#111827"
+      >
+        Mehedy
+      </text>
+      <text
+        x="114"
+        y="53"
+        fontSize="27"
+        fontWeight="900"
+        letterSpacing="-0.5"
+        fontFamily="Plus Jakarta Sans, sans-serif"
+        fill="#DC2626"
+      >
+        Telecom
+      </text>
+      {/* Subtitle */}
+      <text
+        x="5"
+        y="69"
+        fontSize="9.6"
+        fontWeight="700"
+        letterSpacing="0.4"
+        fontFamily="Plus Jakarta Sans, sans-serif"
+        fill="#334155"
+      >
+        Smart Phone, Buy-Sell-Exchange, Best Deal
+      </text>
+    </svg>
+  );
+};
+
 export const CashMemoModal: React.FC<CashMemoModalProps> = ({
   isOpen,
   onClose,
@@ -452,11 +559,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           border-left: 3px solid #DC2626 !important;
         }
 
-        /* A4 Sales Invoice Dimensions (210mm x 297mm with 10mm internal print margins) */
+        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, locked strictly to 1 page on print) */
         .receipt-a4 {
           width: 210mm;
-          min-height: 297mm;
-          padding: 10mm;
+          min-height: 295mm;
+          padding: 8mm 9mm;
           box-sizing: border-box;
           background: #FFFFFF !important;
           box-shadow: 0 22px 50px -16px rgba(17, 24, 39, 0.25), 0 0 0 1px rgba(17, 24, 39, 0.08);
@@ -466,7 +573,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
         }
         .receipt-a4-frame {
           flex: 1;
-          min-height: 277mm;
+          min-height: 279mm;
+          box-sizing: border-box;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -499,7 +607,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           letter-spacing: 0.14em;
         }
 
-        /* Full-Color, Zero-Browser-URL Print Engine */
+        /* Full-Color, Zero-Browser-URL, Strict Single-Page Print Engine */
         @page {
           size: ${printFormat === 'pos80' ? '80mm auto' : 'A4 portrait'};
           margin: 0;
@@ -510,59 +618,67 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
+            box-sizing: border-box !important;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
+            min-height: 0 !important;
+            height: ${printFormat === 'pos80' ? 'auto' : '294mm'} !important;
+            max-height: ${printFormat === 'pos80' ? 'none' : '294mm'} !important;
             background: #FFFFFF !important;
-            overflow: visible !important;
+            overflow: ${printFormat === 'pos80' ? 'visible' : 'hidden'} !important;
           }
           /* Hide the rest of the web app completely so zero extra blank pages appear */
           body > *:not(#cash-memo-print-root) {
             display: none !important;
           }
-          #cash-memo-print-root {
+          #cash-memo-print-root,
+          .memo-studio-root,
+          #memo-workspace-scroll,
+          #memo-workspace-grid,
+          #memo-preview-column {
             position: static !important;
             inset: auto !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            background: #FFFFFF !important;
             display: block !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
+            min-height: 0 !important;
+            height: ${printFormat === 'pos80' ? 'auto' : '294mm'} !important;
+            max-height: ${printFormat === 'pos80' ? 'none' : '294mm'} !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: none !important;
+            overflow: ${printFormat === 'pos80' ? 'visible' : 'hidden'} !important;
+            background: #FFFFFF !important;
           }
           .no-print {
             display: none !important;
           }
-          #memo-workspace-scroll {
-            overflow: visible !important;
-            height: auto !important;
-          }
-          #memo-workspace-grid {
-            display: block !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            max-width: none !important;
-          }
-          #memo-preview-column {
-            display: block !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: visible !important;
-          }
           #receipt-paper {
             box-shadow: none !important;
-            margin: 0 auto !important;
+            margin: 0 !important;
             border-radius: 0 !important;
           }
           .receipt-a4 {
             width: 210mm !important;
-            min-height: 297mm !important;
-            padding: 10mm !important;
+            height: 294mm !important;
+            min-height: 0 !important;
+            max-height: 294mm !important;
+            padding: 8mm 9mm !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
           .receipt-a4-frame {
-            min-height: 277mm !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
           }
           .receipt-80mm {
             width: 80mm !important;
@@ -580,12 +696,17 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             {/* Brand Title */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F8FAFC] to-[#E2E8F0] border border-[#DC2626]/60 flex items-center justify-center overflow-hidden shrink-0">
-                <img
-                  src={OFFICIAL_LOGO_SRC}
-                  alt="Mehedy Telecom"
-                  className="w-full h-full object-contain scale-125"
-                  style={{ mixBlendMode: 'multiply', filter: 'brightness(1.3) contrast(1.4)' }}
-                />
+                {!logoError ? (
+                  <img
+                    src={OFFICIAL_LOGO_SRC}
+                    alt="Mehedy Telecom"
+                    onError={() => setLogoError(true)}
+                    className="w-full h-full object-contain scale-125"
+                    style={{ mixBlendMode: 'multiply', filter: 'brightness(1.3) contrast(1.4)' }}
+                  />
+                ) : (
+                  <MehedyTelecomLogo compact />
+                )}
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white leading-tight whitespace-nowrap">
@@ -1064,9 +1185,9 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     {/* TOP & MAIN BODY */}
                     <div>
                       {/* 1. Metallic Silver-to-Soft-Red Header Banner with Crimson Top Border */}
-                      <div className="mt-invoice-header px-7 py-5 flex items-center justify-between gap-6">
+                      <div className="mt-invoice-header px-6 py-3.5 flex items-center justify-between gap-5">
                         {/* Top-Left: Official Mehedy Telecom Logo (Blended Seamlessly) */}
-                        <div className="w-[265px] h-[94px] overflow-hidden flex items-center justify-start shrink-0">
+                        <div className="w-[240px] h-[74px] overflow-hidden flex items-center justify-start shrink-0">
                           {!logoError ? (
                             <img
                               src={OFFICIAL_LOGO_SRC}
@@ -1076,55 +1197,48 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               className="mt-official-logo w-full h-full object-contain"
                             />
                           ) : (
-                            <div className="flex flex-col">
-                              <span className="text-2xl font-extrabold tracking-tight text-[#111827]">
-                                Mehedy <span className="text-[#DC2626]">Telecom</span>
-                              </span>
-                              <span className="text-[11px] font-semibold text-slate-600">
-                                Smart Phone, Buy-Sell-Exchange, Best Deal
-                              </span>
-                            </div>
+                            <MehedyTelecomLogo />
                           )}
                         </div>
 
                         {/* Top-Right: SALES INVOICE Badge + Shop Address & Phone */}
-                        <div className="text-right space-y-1.5">
+                        <div className="text-right space-y-1">
                           <div
-                            className="inline-block px-4 py-1.5 rounded text-xs font-extrabold tracking-wider uppercase text-white shadow-xs"
+                            className="inline-block px-3.5 py-1 rounded text-[11px] font-extrabold tracking-wider uppercase text-white shadow-xs"
                             style={{
                               background: 'linear-gradient(90deg, #111827 0%, #DC2626 100%)',
                             }}
                           >
                             SALES INVOICE / ক্যাশ মেমো
                           </div>
-                          <div className="text-xs font-bold text-[#111827] pt-0.5">
+                          <div className="text-[11.5px] font-bold text-[#111827] pt-0.5">
                             {shopAddressBn} | {shopAddressEn}
                           </div>
-                          <div className="memo-font-num text-sm font-extrabold text-[#DC2626] tracking-wide">
+                          <div className="memo-font-num text-[13px] font-extrabold text-[#DC2626] tracking-wide">
                             Hotline: {shopPhone}
                           </div>
                         </div>
                       </div>
 
                       {/* 2. Brand Strip (Dark Charcoal to Crimson Red Gradient) */}
-                      <div className="mt-brand-strip text-[#F1F5F9] py-2 px-6 text-center text-[10.5px] font-extrabold tracking-[0.2em] uppercase">
+                      <div className="mt-brand-strip text-[#F1F5F9] py-1.5 px-5 text-center text-[10px] font-extrabold tracking-[0.2em] uppercase">
                         SAMSUNG &nbsp;|&nbsp; XIAOMI &nbsp;|&nbsp; OPPO &nbsp;|&nbsp; TECNO &nbsp;|&nbsp; INFINIX &nbsp;|&nbsp; ITEL &nbsp;|&nbsp; HONOR &nbsp;|&nbsp; iPHONE
                       </div>
 
                       {/* Main Content Body */}
-                      <div className="px-7 py-6 space-y-5 paper-white">
+                      <div className="px-6 py-4 space-y-3.5 paper-white">
                         {/* 3. Customer, Invoice Meta & Dynamic Barcode Card */}
-                        <div className="paper-card border border-[#E2E8F0] rounded-lg p-4 grid grid-cols-12 gap-5 text-xs">
+                        <div className="paper-card border border-[#E2E8F0] rounded-lg p-3 grid grid-cols-12 gap-4 text-[11.5px]">
                           {/* Left: Customer Info */}
-                          <div className="col-span-7 space-y-2 pr-4 border-r border-[#E2E8F0]">
-                            <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#DC2626] pb-1 border-b border-[#E2E8F0]">
+                          <div className="col-span-7 space-y-1.5 pr-4 border-r border-[#E2E8F0]">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-[#DC2626] pb-1 border-b border-[#E2E8F0]">
                               গ্রাহকের বিবরণ (Customer Information)
                             </div>
                             <div className="grid grid-cols-12 gap-1 items-baseline">
                               <span className="col-span-4 text-[#64748B] font-medium">
                                 ক্রেতার নাম (Customer):
                               </span>
-                              <span className="col-span-8 font-bold text-[#111827] text-sm">
+                              <span className="col-span-8 font-bold text-[#111827] text-[13px]">
                                 {customerName || 'Walk-in Customer'}
                               </span>
                             </div>
@@ -1157,13 +1271,13 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                           </div>
 
                           {/* Right: Invoice Meta & Scannable Barcode */}
-                          <div className="col-span-5 flex flex-col justify-between gap-2">
-                            <div className="space-y-1.5">
+                          <div className="col-span-5 flex flex-col justify-between gap-1.5">
+                            <div className="space-y-1">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-[#64748B] font-medium">
                                   মেমো নং (Invoice N°):
                                 </span>
-                                <span className="memo-font-num font-extrabold text-[#111827] bg-white px-2 py-0.5 rounded border border-[#CBD5E1] text-xs">
+                                <span className="memo-font-num font-extrabold text-[#111827] bg-white px-2 py-0.5 rounded border border-[#CBD5E1] text-[11px]">
                                   {memoNo}
                                 </span>
                               </div>
@@ -1181,8 +1295,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               </div>
                             </div>
 
-                            <div className="pt-2 border-t border-[#E2E8F0] flex justify-end">
-                              <InvoiceBarcode value={memoNo} />
+                            <div className="pt-1.5 border-t border-[#E2E8F0] flex justify-end">
+                              <InvoiceBarcode value={memoNo} height={28} />
                             </div>
                           </div>
                         </div>
@@ -1192,17 +1306,17 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr
-                                className="mt-table-head text-white text-[11.5px]"
+                                className="mt-table-head text-white text-[11px]"
                                 style={{ borderBottom: '2px solid #DC2626' }}
                               >
-                                <th className="py-3 px-3 text-center w-11 font-bold">নং</th>
-                                <th className="py-3 px-3.5 font-bold">
+                                <th className="py-2.5 px-2.5 text-center w-10 font-bold">নং</th>
+                                <th className="py-2.5 px-3 font-bold">
                                   স্মার্টফোন / পণ্যের বিবরণ ও IMEI
                                 </th>
-                                <th className="py-3 px-3 text-right w-24 font-bold">দর (৳)</th>
-                                <th className="py-3 px-2.5 text-center w-16 font-bold">পরিমাণ</th>
-                                <th className="py-3 px-3 text-right w-20 font-bold">ছাড় (৳)</th>
-                                <th className="py-3 px-3.5 text-right w-28 font-bold">মোট (৳)</th>
+                                <th className="py-2.5 px-2.5 text-right w-24 font-bold">দর (৳)</th>
+                                <th className="py-2.5 px-2 text-center w-14 font-bold">পরিমাণ</th>
+                                <th className="py-2.5 px-2.5 text-right w-20 font-bold">ছাড় (৳)</th>
+                                <th className="py-2.5 px-3 text-right w-28 font-bold">মোট (৳)</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1220,11 +1334,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                       backgroundColor: index % 2 === 1 ? '#F8FAFC' : '#FFFFFF',
                                     }}
                                   >
-                                    <td className="py-4 px-3 text-center memo-font-num text-xs font-bold text-[#475569] align-top">
+                                    <td className="py-3 px-2.5 text-center memo-font-num text-xs font-bold text-[#475569] align-top">
                                       {String(index + 1).padStart(2, '0')}
                                     </td>
-                                    <td className="py-4 px-3.5 align-top">
-                                      <div className="font-bold text-[13px] text-[#111827] leading-snug">
+                                    <td className="py-3 px-3 align-top">
+                                      <div className="font-bold text-[12.5px] text-[#111827] leading-snug">
                                         {item.model || (
                                           <span className="text-slate-400 italic font-normal">
                                             পণ্যের মডেল লিখুন...
@@ -1232,7 +1346,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                         )}
                                       </div>
                                       {hasImei && (
-                                        <div className="paper-imei mt-2 px-3 py-1.5 rounded-r text-[11px] memo-font-num text-[#1F2937] inline-flex flex-wrap gap-x-4 gap-y-1">
+                                        <div className="paper-imei mt-1.5 px-2.5 py-1 rounded-r text-[10.5px] memo-font-num text-[#1F2937] inline-flex flex-wrap gap-x-4 gap-y-0.5">
                                           {item.imei1 && (
                                             <span>
                                               <strong className="text-[#111827]">IMEI 1:</strong>{' '}
@@ -1248,57 +1362,55 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                         </div>
                                       )}
                                     </td>
-                                    <td className="py-4 px-3 text-right memo-font-num text-xs font-semibold text-[#334155] align-top">
+                                    <td className="py-3 px-2.5 text-right memo-font-num text-xs font-semibold text-[#334155] align-top">
                                       {formatMoney(item.price)}
                                     </td>
-                                    <td className="py-4 px-2.5 text-center memo-font-num text-xs font-bold text-[#111827] align-top">
+                                    <td className="py-3 px-2 text-center memo-font-num text-xs font-bold text-[#111827] align-top">
                                       {item.qty || 1}
                                     </td>
-                                    <td className="py-4 px-3 text-right memo-font-num text-xs font-semibold text-[#DC2626] align-top">
+                                    <td className="py-3 px-2.5 text-right memo-font-num text-xs font-semibold text-[#DC2626] align-top">
                                       {itemDisc > 0 ? formatMoney(itemDisc) : '—'}
                                     </td>
-                                    <td className="py-4 px-3.5 text-right memo-font-num text-[13px] font-extrabold text-[#111827] align-top">
+                                    <td className="py-3 px-3 text-right memo-font-num text-[12.5px] font-extrabold text-[#111827] align-top">
                                       {formatMoney(lineTotal)}
                                     </td>
                                   </tr>
                                 );
                               })}
 
-                              {/* Executive vertical filler rows so single-item A4 invoices feel balanced */}
-                              {items.length < 3 &&
-                                Array.from({ length: 3 - items.length }).map((_, fillerIdx) => (
-                                  <tr
-                                    key={`filler-${fillerIdx}`}
-                                    className="border-b border-[#F1F5F9]"
-                                    style={{ height: '42px', backgroundColor: '#FFFFFF' }}
-                                  >
-                                    <td colSpan={6} />
-                                  </tr>
-                                ))}
+                              {/* Balanced filler row only for single-item invoices so multi-item never overflows 1 page */}
+                              {items.length < 2 && (
+                                <tr
+                                  className="border-b border-[#F1F5F9]"
+                                  style={{ height: '34px', backgroundColor: '#FFFFFF' }}
+                                >
+                                  <td colSpan={6} />
+                                </tr>
+                              )}
                             </tbody>
                           </table>
                         </div>
 
                         {/* 5. Bottom Financial Summary & Transaction Details Box */}
-                        <div className="grid grid-cols-12 gap-5 items-stretch">
+                        <div className="grid grid-cols-12 gap-4 items-stretch">
                           {/* Left: Transaction Details Table + Amount in Words */}
-                          <div className="col-span-7 flex flex-col justify-between gap-3.5">
+                          <div className="col-span-7 flex flex-col justify-between gap-2.5">
                             <div className="border border-[#CBD5E1] rounded-lg overflow-hidden">
-                              <div className="bg-[#F8FAFC] px-3.5 py-2 border-b border-[#CBD5E1] flex items-center justify-between">
-                                <span className="text-[11px] font-extrabold text-[#111827] uppercase tracking-wider">
+                              <div className="bg-[#F8FAFC] px-3 py-1.5 border-b border-[#CBD5E1] flex items-center justify-between">
+                                <span className="text-[10.5px] font-extrabold text-[#111827] uppercase tracking-wider">
                                   Transaction Details (লেনদেনের বিবরণ)
                                 </span>
-                                <span className="text-[10.5px] font-semibold text-[#64748B]">
+                                <span className="text-[10px] font-semibold text-[#64748B]">
                                   {paymentType}
                                 </span>
                               </div>
-                              <table className="w-full text-xs border-collapse">
+                              <table className="w-full text-[11.5px] border-collapse">
                                 <thead>
-                                  <tr className="bg-[#F1F5F9] text-[#475569] text-[10.5px] border-b border-[#E2E8F0]">
-                                    <th className="py-1.5 px-3.5 text-left font-bold">
+                                  <tr className="bg-[#F1F5F9] text-[#475569] text-[10px] border-b border-[#E2E8F0]">
+                                    <th className="py-1 px-3 text-left font-bold">
                                       পেমেন্ট মাধ্যম (Payment Method)
                                     </th>
-                                    <th className="py-1.5 px-3.5 text-right font-bold">
+                                    <th className="py-1 px-3 text-right font-bold">
                                       জমার পরিমাণ (Amount ৳)
                                     </th>
                                   </tr>
@@ -1306,10 +1418,10 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                 <tbody>
                                   {transactions.map((tx) => (
                                     <tr key={tx.id} className="border-b border-[#F1F5F9] last:border-b-0">
-                                      <td className="py-2 px-3.5 font-semibold text-[#111827]">
+                                      <td className="py-1.5 px-3 font-semibold text-[#111827]">
                                         {tx.method}
                                       </td>
-                                      <td className="py-2 px-3.5 text-right memo-font-num font-bold text-[#111827]">
+                                      <td className="py-1.5 px-3 text-right memo-font-num font-bold text-[#111827]">
                                         ৳ {formatMoney(tx.amount)}
                                       </td>
                                     </tr>
@@ -1319,14 +1431,14 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                             </div>
 
                             {/* Amount in Words (English & Bengali) */}
-                            <div className="paper-card border border-[#E2E8F0] rounded-lg px-3.5 py-3 space-y-1.5">
-                              <div className="text-xs leading-snug">
+                            <div className="paper-card border border-[#E2E8F0] rounded-lg px-3 py-2 space-y-1">
+                              <div className="text-[11.5px] leading-snug">
                                 <span className="font-bold text-[#64748B]">In Words: </span>
                                 <span className="font-extrabold text-[#111827]">
                                   {numberToEnglishWords(grossTotal)}
                                 </span>
                               </div>
-                              <div className="text-xs leading-snug pt-1 border-t border-[#E2E8F0]">
+                              <div className="text-[11.5px] leading-snug pt-1 border-t border-[#E2E8F0]">
                                 <span className="font-bold text-[#64748B]">কথায়: </span>
                                 <span className="font-bold text-[#334155]">
                                   {numberToBengaliWords(grossTotal)}
@@ -1336,8 +1448,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                           </div>
 
                           {/* Right: Financial Summary Table */}
-                          <div className="col-span-5 border border-[#CBD5E1] rounded-lg overflow-hidden text-xs flex flex-col justify-between paper-white">
-                            <div className="px-4 py-2.5 flex justify-between items-center border-b border-[#E2E8F0]">
+                          <div className="col-span-5 border border-[#CBD5E1] rounded-lg overflow-hidden text-[11.5px] flex flex-col justify-between paper-white">
+                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
                               <span className="text-[#475569] font-semibold">
                                 Sub Total / উপ-মোট
                               </span>
@@ -1346,7 +1458,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               </span>
                             </div>
 
-                            <div className="px-4 py-2.5 flex justify-between items-center border-b border-[#E2E8F0]">
+                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
                               <span className="text-[#475569] font-semibold">
                                 Discount / মোট ছাড়
                               </span>
@@ -1355,16 +1467,16 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               </span>
                             </div>
 
-                            <div className="mt-gross-row px-4 py-3 flex justify-between items-center border-y border-[#FECACA]">
-                              <span className="font-extrabold text-[#991B1B] text-[13px]">
+                            <div className="mt-gross-row px-3.5 py-2.5 flex justify-between items-center border-y border-[#FECACA]">
+                              <span className="font-extrabold text-[#991B1B] text-[12.5px]">
                                 Gross Total / সর্বমোট
                               </span>
-                              <span className="memo-font-num font-extrabold text-[#DC2626] text-[15px]">
+                              <span className="memo-font-num font-extrabold text-[#DC2626] text-[14.5px]">
                                 ৳ {formatMoney(grossTotal)}
                               </span>
                             </div>
 
-                            <div className="px-4 py-2.5 flex justify-between items-center border-b border-[#E2E8F0]">
+                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
                               <span className="text-[#475569] font-semibold">
                                 Paid Amount / জমা
                               </span>
@@ -1374,14 +1486,14 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                             </div>
 
                             <div
-                              className="px-4 py-2.5 flex justify-between items-center font-extrabold"
+                              className="px-3.5 py-2 flex justify-between items-center font-extrabold"
                               style={{
                                 backgroundColor: outstanding > 0 ? '#FEF2F2' : '#F8FAFC',
                                 color: outstanding > 0 ? '#DC2626' : '#065F46',
                               }}
                             >
                               <span>Outstanding / বকেয়া</span>
-                              <span className="memo-font-num text-[13px]">
+                              <span className="memo-font-num text-[12.5px]">
                                 ৳ {formatMoney(outstanding)}
                               </span>
                             </div>
@@ -1391,20 +1503,20 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     </div>
 
                     {/* BOTTOM: TERMS, DYNAMIC STAMP & SIGNATURES */}
-                    <div className="px-7 pb-6 pt-3 space-y-6 paper-white">
+                    <div className="px-6 pb-4 pt-2 space-y-4 paper-white">
                       {/* Terms & Conditions + Dynamic Rubber Stamp Row */}
-                      <div className="grid grid-cols-12 gap-5 items-end">
+                      <div className="grid grid-cols-12 gap-4 items-end">
                         {/* Left: Shop Warranty Terms */}
                         <div className="col-span-8">
                           {warrantyLines.length > 0 && (
-                            <div className="paper-card border border-[#E2E8F0] rounded-lg p-3.5">
-                              <div className="text-[11px] font-extrabold text-[#111827] pb-1.5 mb-1.5 border-b border-[#E2E8F0] flex items-center justify-between">
+                            <div className="paper-card border border-[#E2E8F0] rounded-lg p-3">
+                              <div className="text-[10.5px] font-extrabold text-[#111827] pb-1 mb-1 border-b border-[#E2E8F0] flex items-center justify-between">
                                 <span>ওয়ারেন্টি ও বিক্রয় শর্তাবলী (Terms &amp; Conditions)</span>
-                                <span className="text-[9.5px] font-bold text-[#DC2626] uppercase">
+                                <span className="text-[9px] font-bold text-[#DC2626] uppercase">
                                   Mehedy Telecom Policy
                                 </span>
                               </div>
-                              <ul className="space-y-1 text-[10.5px] text-[#334155]">
+                              <ul className="space-y-0.5 text-[10px] text-[#334155]">
                                 {warrantyLines.map((line, i) => (
                                   <li key={i} className="leading-snug">
                                     {line}
@@ -1419,14 +1531,14 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                         <div className="col-span-4 flex flex-col items-center justify-center pb-1">
                           {outstanding === 0 ? (
                             <div
-                              className="mt-rubber-stamp px-5 py-2 rounded-md text-center select-none"
+                              className="mt-rubber-stamp px-5 py-1.5 rounded-md text-center select-none"
                               style={{
                                 borderColor: '#059669',
                                 color: '#047857',
                                 backgroundColor: 'rgba(236, 253, 245, 0.85)',
                               }}
                             >
-                              <div className="text-lg font-black leading-none tracking-[0.22em]">
+                              <div className="text-base font-black leading-none tracking-[0.22em]">
                                 PAID
                               </div>
                               <div className="text-[8.5px] font-bold tracking-wider uppercase mt-1">
@@ -1435,14 +1547,14 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                             </div>
                           ) : (
                             <div
-                              className="mt-rubber-stamp px-4 py-2 rounded-md text-center select-none"
+                              className="mt-rubber-stamp px-4 py-1.5 rounded-md text-center select-none"
                               style={{
                                 borderColor: '#DC2626',
                                 color: '#DC2626',
                                 backgroundColor: 'rgba(254, 242, 242, 0.9)',
                               }}
                             >
-                              <div className="text-base font-black leading-none tracking-[0.14em]">
+                              <div className="text-[15px] font-black leading-none tracking-[0.14em]">
                                 DUE / কিস্তি
                               </div>
                               <div className="memo-font-num text-[9px] font-extrabold mt-1">
@@ -1454,19 +1566,19 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                       </div>
 
                       {/* Signature Row */}
-                      <div className="pt-8 border-t border-dashed border-[#CBD5E1] flex items-end justify-between text-xs">
+                      <div className="pt-6 border-t border-dashed border-[#CBD5E1] flex items-end justify-between text-[11.5px]">
                         <div className="text-center">
-                          <div className="w-52 border-t border-[#475569] pt-1.5 font-bold text-[#334155]">
+                          <div className="w-48 border-t border-[#475569] pt-1 font-bold text-[#334155]">
                             ক্রেতার স্বাক্ষর (Customer Signature)
                           </div>
                         </div>
 
-                        <div className="text-center text-[10.5px] text-[#64748B] font-semibold pb-0.5">
+                        <div className="text-center text-[10px] text-[#64748B] font-semibold pb-0.5">
                           ধন্যবাদ! আবার আসবেন — {shopNameBn}
                         </div>
 
                         <div className="text-center">
-                          <div className="w-56 border-t border-[#111827] pt-1.5 font-extrabold text-[#111827]">
+                          <div className="w-52 border-t border-[#111827] pt-1 font-extrabold text-[#111827]">
                             কর্তৃপক্ষের স্বাক্ষর (Authorized Signature)
                           </div>
                         </div>
@@ -1481,7 +1593,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     <div>
                       {/* Header with Official Logo */}
                       <div className="text-center border-b-2 border-[#DC2626] pb-2.5">
-                        <div className="w-[180px] h-[54px] mx-auto overflow-hidden flex items-center justify-center mb-1">
+                        <div className="w-[180px] h-[52px] mx-auto overflow-hidden flex items-center justify-center mb-1">
                           {!logoError ? (
                             <img
                               src={OFFICIAL_LOGO_SRC}
@@ -1491,9 +1603,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               className="mt-official-logo w-full h-full object-contain"
                             />
                           ) : (
-                            <span className="text-base font-extrabold text-[#111827]">
-                              Mehedy <span className="text-[#DC2626]">Telecom</span>
-                            </span>
+                            <MehedyTelecomLogo />
                           )}
                         </div>
                         <div
