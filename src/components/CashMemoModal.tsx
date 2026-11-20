@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, X, FileText } from 'lucide-react';
+import { Printer, X, Plus, Trash2, RotateCcw, CreditCard, FileText } from 'lucide-react';
 import { Sale, Product } from '../types';
 
 interface CashMemoModalProps {
@@ -8,7 +8,6 @@ interface CashMemoModalProps {
   onClose: () => void;
   sale: Sale | null;
   product?: Product | null;
-  autoPrint?: boolean;
 }
 
 interface MemoItem {
@@ -302,32 +301,39 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
   onClose,
   sale,
   product,
-  autoPrint = false,
 }) => {
   const [printFormat, setPrintFormat] = useState<'a4' | 'pos80'>('a4');
-  const [logoError, setLogoError] = useState(false);
-  const autoPrintedSaleIdRef = useRef<string | null>(null);
 
   // Shop identity
   const shopNameBn = 'মেহেদী টেলিকম';
-  const shopAddressBn = 'নাগেশ্বরী, কুড়িগ্রাম (২য় তলা)';
-  const shopAddressEn = 'Nageshwari, Kurigram (2nd Floor)';
+  const shopAddressBn = 'ভিতরবন্দ বাজার ধানহাটি, নাগেশ্বরী, কুড়িগ্রাম';
   const shopPhone = '01922-299968';
 
   const [memoNo, setMemoNo] = useState('');
   const [dateStr, setDateStr] = useState('');
   const [paymentType, setPaymentType] = useState('Cash');
   const [emiAppName, setEmiAppName] = useState('');
-  const [emiMonths] = useState<number>(6);
+  const [appUsername, setAppUsername] = useState('');
+  const [appPassword, setAppPassword] = useState('');
+  const [emiMonths, setEmiMonths] = useState<number>(6);
+  const [customMonthlyEmi, setCustomMonthlyEmi] = useState<string>('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [extraDiscount, setExtraDiscount] = useState(0);
   const [transactions, setTransactions] = useState<TransactionEntry[]>([
     { id: 1, method: 'Cash (নগদ)', amount: 0 },
   ]);
+  const [warrantyTerms, setWarrantyTerms] = useState(DEFAULT_WARRANTY_TERMS);
   const [items, setItems] = useState<MemoItem[]>([]);
+  const [logoError, setLogoError] = useState(false);
 
-  // Populate invoice fields whenever `sale` changes
+  const isERinApp = (appName?: string): boolean => {
+    const normalized = (appName || '').trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    return normalized === 'erin' || normalized === 'ইঋণ' || normalized === 'ইরিন';
+  };
+
+  // Populate editor fields whenever `sale` changes
   useEffect(() => {
     if (!sale) return;
 
@@ -358,11 +364,17 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
 
     setMemoNo(computedMemo);
     setDateStr(formattedDate);
+    setLogoError(false);
     setPaymentType(sale.is_cash_sale ? 'Cash' : 'Installment');
     setEmiAppName(resolvedApp);
+    setAppUsername(isERinApp(resolvedApp) ? '' : sale.app_username || '');
+    setAppPassword(isERinApp(resolvedApp) ? '' : sale.app_password || '');
+    setEmiMonths(6);
+    setCustomMonthlyEmi('');
     setCustomerName(sale.customer_name || '');
     setCustomerPhone(sale.phone_number && sale.phone_number !== 'N/A' ? sale.phone_number : '');
     setCustomerAddress(sale.address && sale.address !== 'N/A' ? sale.address : '');
+    setExtraDiscount(0);
     setTransactions([
       {
         id: 1,
@@ -370,6 +382,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
         amount: paidAmt,
       },
     ]);
+    setWarrantyTerms(DEFAULT_WARRANTY_TERMS);
     setItems([
       {
         id: 1,
@@ -383,38 +396,139 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
     ]);
   }, [sale, product]);
 
-  // Automatically open system Print dialog right after a new sale is submitted
-  useEffect(() => {
-    if (!isOpen || !sale) {
-      autoPrintedSaleIdRef.current = null;
-      return;
-    }
-    if (autoPrint && autoPrintedSaleIdRef.current !== sale.id) {
-      autoPrintedSaleIdRef.current = sale.id;
-      const timer = window.setTimeout(() => {
-        window.print();
-      }, 420);
-      return () => window.clearTimeout(timer);
-    }
-  }, [isOpen, sale, autoPrint]);
-
   if (!isOpen || !sale) return null;
 
   const isEmiSale = paymentType === 'Installment';
+  const showAppCredentials = (isEmiSale || Boolean(emiAppName.trim())) && !isERinApp(emiAppName);
   const subtotal = items.reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0),
     0
   );
-  const totalDiscount = items.reduce((sum, item) => sum + (Number(item.discount) || 0), 0);
+  const itemDiscountTotal = items.reduce((sum, item) => sum + (Number(item.discount) || 0), 0);
+  const totalDiscount = itemDiscountTotal + (Number(extraDiscount) || 0);
   const grossTotal = Math.max(0, subtotal - totalDiscount);
   const paidAmount = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
   const outstanding = Math.max(0, grossTotal - paidAmount);
-  const effectiveMonthlyEmi = emiMonths > 0 ? Math.round(outstanding / emiMonths) : outstanding;
+  const autoMonthlyEmi = emiMonths > 0 ? Math.round(outstanding / emiMonths) : outstanding;
+  const effectiveMonthlyEmi =
+    customMonthlyEmi.trim() !== ''
+      ? Math.max(0, Number(customMonthlyEmi) || 0)
+      : autoMonthlyEmi;
 
-  const warrantyLines = DEFAULT_WARRANTY_TERMS
+  const warrantyLines = (warrantyTerms || '')
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
+
+  const syncSingleTxAmount = (nextGross: number) => {
+    if (isEmiSale) return;
+    setTransactions((prev) => {
+      if (prev.length === 1) {
+        return [{ ...prev[0], amount: nextGross }];
+      }
+      return prev;
+    });
+  };
+
+  const handleUpdateItem = (id: number, field: keyof MemoItem, value: string | number) => {
+    setItems((prev) => {
+      const updated = prev.map((it) => (it.id === id ? { ...it, [field]: value } : it));
+      if (field === 'price' || field === 'qty' || field === 'discount') {
+        const nextSub = updated.reduce(
+          (s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0),
+          0
+        );
+        const nextItemDisc = updated.reduce((s, i) => s + (Number(i.discount) || 0), 0);
+        const nextGross = Math.max(0, nextSub - nextItemDisc - (Number(extraDiscount) || 0));
+        syncSingleTxAmount(nextGross);
+      }
+      return updated;
+    });
+  };
+
+  const handleAddItem = () => {
+    const nextId = items.length ? Math.max(...items.map((i) => i.id)) + 1 : 1;
+    setItems((prev) => [
+      ...prev,
+      { id: nextId, model: '', imei1: '', imei2: '', qty: 1, price: 0, discount: 0 },
+    ]);
+  };
+
+  const handleRemoveItem = (id: number) => {
+    if (items.length <= 1) return;
+    setItems((prev) => {
+      const updated = prev.filter((i) => i.id !== id);
+      const nextSub = updated.reduce(
+        (s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0),
+        0
+      );
+      const nextItemDisc = updated.reduce((s, i) => s + (Number(i.discount) || 0), 0);
+      syncSingleTxAmount(Math.max(0, nextSub - nextItemDisc - (Number(extraDiscount) || 0)));
+      return updated;
+    });
+  };
+
+  const handleUpdateTransaction = (id: number, field: keyof TransactionEntry, value: string | number) => {
+    setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, [field]: value } : tx)));
+  };
+
+  const handleAddTransaction = () => {
+    const nextId = transactions.length ? Math.max(...transactions.map((t) => t.id)) + 1 : 1;
+    setTransactions((prev) => [...prev, { id: nextId, method: 'bKash', amount: 0 }]);
+  };
+
+  const handleRemoveTransaction = (id: number) => {
+    if (transactions.length <= 1) return;
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleResetNewMemo = () => {
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(
+      today.getMonth() + 1
+    ).padStart(2, '0')}/${today.getFullYear()}`;
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    setMemoNo(`MT-${today.getFullYear()}-${randomNum}`);
+    setDateStr(formattedDate);
+    setPaymentType('Cash');
+    setEmiAppName('');
+    setAppUsername('');
+    setAppPassword('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setExtraDiscount(0);
+    setTransactions([{ id: 1, method: 'Cash (নগদ)', amount: 0 }]);
+    setItems([{ id: 1, model: '', imei1: '', imei2: '', qty: 1, price: 0, discount: 0 }]);
+  };
+
+  const handleLoadSampleData = () => {
+    setMemoNo('MT-2026-0842');
+    setDateStr('20/11/2026');
+    setPaymentType('Cash');
+    setEmiAppName('');
+    setAppUsername('');
+    setAppPassword('');
+    setCustomerName('মোঃ তানভীর আহমেদ');
+    setCustomerPhone('01715-849210');
+    setCustomerAddress('কলেজ মোড়, নাগেশ্বরী, কুড়িগ্রাম');
+    setExtraDiscount(0);
+    setTransactions([
+      { id: 1, method: 'Cash (নগদ)', amount: 21000 },
+      { id: 2, method: 'bKash', amount: 10000 },
+    ]);
+    setItems([
+      {
+        id: 1,
+        model: 'Xiaomi Redmi Note 13 Pro 5G (8GB/256GB, Midnight Black)',
+        imei1: '864290061234567',
+        imei2: '864290061234575',
+        qty: 1,
+        price: 31500,
+        discount: 500,
+      },
+    ]);
+  };
 
   const modalContent = (
     <div
@@ -448,12 +562,13 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           background: linear-gradient(90deg, #FEF2F2 0%, #FEE2E2 100%) !important;
         }
 
-        /* Seamless Official Logo Blending (removes light metallic jpg background cleanly) */
+        /* Preserve Official Logo Exactly As Uploaded (No color distortion or stretching) */
         .mt-official-logo {
-          mix-blend-mode: multiply;
-          filter: brightness(1.36) contrast(1.48) saturate(1.18);
-          transform: scale(1.32);
-          transform-origin: center center;
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
         }
 
         /* Always keep paper strictly light even if app is in Dark Mode */
@@ -609,14 +724,13 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             {/* Brand Title */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F8FAFC] to-[#E2E8F0] border border-[#DC2626]/60 flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-16 h-10 rounded-lg border border-[#DC2626]/60 bg-[#B6BFBE] flex items-center justify-center overflow-hidden shrink-0">
                 {!logoError ? (
                   <img
                     src={OFFICIAL_LOGO_SRC}
                     alt="Mehedy Telecom"
                     onError={() => setLogoError(true)}
-                    className="w-full h-full object-contain scale-125"
-                    style={{ mixBlendMode: 'multiply', filter: 'brightness(1.3) contrast(1.4)' }}
+                    className="w-full h-full object-cover object-center"
                   />
                 ) : (
                   <MehedyTelecomLogo compact />
@@ -624,10 +738,10 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white leading-tight whitespace-nowrap">
-                  মেহেদী টেলিকম <span className="text-[#EF4444]">মেমো প্রিন্ট</span>
+                  মেহেদী টেলিকম <span className="text-[#EF4444]">ইনভয়েস স্টুডিও</span>
                 </h1>
                 <p className="text-xs text-slate-400">
-                  Direct Print Ready · A4 Sales Invoice &amp; 80mm POS
+                  A4 Sales Invoice &amp; 80mm POS Receipt Generator
                 </p>
               </div>
             </div>
@@ -663,6 +777,15 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
 
               <button
                 type="button"
+                onClick={handleResetNewMemo}
+                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>নতুন মেমো</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => window.print()}
                 className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-md transition-colors cursor-pointer whitespace-nowrap"
               >
@@ -682,20 +805,490 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           </div>
         </header>
 
-        {/* ================= DIRECT PRINT PREVIEW WORKSPACE ================= */}
+        {/* ================= MAIN 2-COLUMN WORKSPACE ================= */}
         <div id="memo-workspace-scroll" className="flex-1 overflow-y-auto">
           <div
             id="memo-workspace-grid"
-            className="max-w-[1100px] mx-auto px-3 sm:px-6 py-5 flex flex-col items-center"
+            className="max-w-[1440px] mx-auto px-3 sm:px-6 py-5 grid grid-cols-1 xl:grid-cols-12 gap-6 items-start"
           >
+            {/* LEFT COLUMN: LIVE EDITOR */}
+            <div className="no-print xl:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-[#F8FAFC]">
+                <h2 className="font-bold text-sm text-[#111827]">
+                  ইনভয়েস এডিটর (Live Editor)
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleLoadSampleData}
+                  className="text-xs font-semibold text-[#DC2626] hover:text-[#991B1B] underline cursor-pointer"
+                >
+                  স্যাম্পল ডাটা
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-5 max-h-[calc(100vh-145px)] overflow-y-auto">
+                {/* 1. Invoice Meta */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-slate-500">
+                    ১. মেমো ও পেমেন্টের ধরন
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        মেমো নং (Invoice N°)
+                      </label>
+                      <input
+                        type="text"
+                        value={memoNo}
+                        onChange={(e) => setMemoNo(e.target.value)}
+                        className="memo-font-num w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        তারিখ (Date)
+                      </label>
+                      <input
+                        type="text"
+                        value={dateStr}
+                        onChange={(e) => setDateStr(e.target.value)}
+                        className="memo-font-num w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        ধরন (Payment Type)
+                      </label>
+                      <select
+                        value={paymentType}
+                        onChange={(e) => setPaymentType(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                      >
+                        <option value="Cash">Cash (নগদ)</option>
+                        <option value="Installment">Installment (কিস্তি)</option>
+                        <option value="bKash">bKash</option>
+                        <option value="Nagad">Nagad</option>
+                        <option value="Cash + bKash">Cash + bKash</option>
+                        <option value="Bank / Card">Bank / Card</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        কিস্তির অ্যাপ (ঐচ্ছিক)
+                      </label>
+                      <input
+                        type="text"
+                        value={emiAppName}
+                        onChange={(e) => setEmiAppName(e.target.value)}
+                        placeholder="যেমন: Mobile Bazar, PalmPay"
+                        className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                  </div>
+                  {showAppCredentials && (
+                    <div className="grid grid-cols-2 gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          User / Username {emiAppName.trim() ? `(${emiAppName.trim()})` : ''}
+                        </label>
+                        <input
+                          type="text"
+                          value={appUsername}
+                          onChange={(e) => setAppUsername(e.target.value)}
+                          placeholder="অ্যাপ ইউজার আইডি"
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-semibold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Password (পাসওয়ার্ড)
+                        </label>
+                        <input
+                          type="text"
+                          value={appPassword}
+                          onChange={(e) => setAppPassword(e.target.value)}
+                          placeholder="অ্যাপ পাসওয়ার্ড"
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-semibold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* 2. Customer Details */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-slate-500">
+                    ২. ক্রেতার তথ্য (Customer Details)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        ক্রেতার নাম
+                      </label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="ক্রেতার নাম লিখুন"
+                        className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        মোবাইল নং
+                      </label>
+                      <input
+                        type="text"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="017XXXXXXXX"
+                        className="memo-font-num w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      ঠিকানা (Address)
+                    </label>
+                    <input
+                      type="text"
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="ক্রেতার ঠিকানা লিখুন"
+                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* 3. Product & IMEI List */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">
+                      ৩. ফোনের মডেল ও IMEI
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddItem}
+                      className="px-2.5 py-1 rounded-md bg-[#111827] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#374151] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> পণ্য যোগ করুন
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {items.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="p-3 rounded-lg bg-[#F8FAFC] border border-slate-200 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[#111827]">
+                            পণ্য #{idx + 1}
+                          </span>
+                          {items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="text-[#DC2626] hover:text-[#991B1B] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> মুছুন
+                            </button>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                            স্মার্টফোন / পণ্যের মডেল ও ভ্যারিয়েন্ট
+                          </label>
+                          <input
+                            type="text"
+                            value={item.model}
+                            onChange={(e) => handleUpdateItem(item.id, 'model', e.target.value)}
+                            placeholder="যেমন: Samsung Galaxy A55 5G (8GB/128GB)"
+                            className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              IMEI 1
+                            </label>
+                            <input
+                              type="text"
+                              value={item.imei1}
+                              onChange={(e) => handleUpdateItem(item.id, 'imei1', e.target.value)}
+                              placeholder="IMEI 1"
+                              className="memo-font-num w-full px-2.5 py-1 text-xs rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              IMEI 2 (ঐচ্ছিক)
+                            </label>
+                            <input
+                              type="text"
+                              value={item.imei2}
+                              onChange={(e) => handleUpdateItem(item.id, 'imei2', e.target.value)}
+                              placeholder="IMEI 2"
+                              className="memo-font-num w-full px-2.5 py-1 text-xs rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              দর (৳)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.price}
+                              onChange={(e) =>
+                                handleUpdateItem(item.id, 'price', Number(e.target.value))
+                              }
+                              className="memo-font-num w-full px-2 py-1 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              পরিমাণ
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.qty}
+                              onChange={(e) =>
+                                handleUpdateItem(item.id, 'qty', Number(e.target.value))
+                              }
+                              className="memo-font-num w-full px-2 py-1 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                              ছাড় (৳)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.discount}
+                              onChange={(e) =>
+                                handleUpdateItem(item.id, 'discount', Number(e.target.value))
+                              }
+                              className="memo-font-num w-full px-2 py-1 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* 4. Transactions & Extra Discount */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-[#DC2626]" />
+                      ৪. লেনদেনের বিবরণ ও হিসাব
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddTransaction}
+                      className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[#111827] text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" /> পেমেন্ট যোগ
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {transactions.map((tx) => (
+                      <div key={tx.id} className="flex items-center gap-2">
+                        <select
+                          value={tx.method}
+                          onChange={(e) => handleUpdateTransaction(tx.id, 'method', e.target.value)}
+                          className="flex-1 px-2.5 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        >
+                          <option value="Cash (নগদ)">Cash (নগদ)</option>
+                          <option value="bKash">bKash</option>
+                          <option value="Nagad">Nagad</option>
+                          <option value="Rocket">Rocket</option>
+                          <option value="Bank / Card">Bank / Card</option>
+                          <option value="Cash / Down Payment">Cash / Down Payment</option>
+                          {![
+                            'Cash (নগদ)',
+                            'bKash',
+                            'Nagad',
+                            'Rocket',
+                            'Bank / Card',
+                            'Cash / Down Payment',
+                          ].includes(tx.method) && <option value={tx.method}>{tx.method}</option>}
+                        </select>
+                        <input
+                          type="number"
+                          min={0}
+                          value={tx.amount}
+                          onChange={(e) =>
+                            handleUpdateTransaction(tx.id, 'amount', Number(e.target.value) || 0)
+                          }
+                          className="memo-font-num w-28 px-2.5 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                          placeholder="টাকা"
+                        />
+                        {transactions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTransaction(tx.id)}
+                            className="p-1.5 text-slate-400 hover:text-[#DC2626] cursor-pointer"
+                            title="মুছুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {isEmiSale ? (
+                    <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-lg bg-red-50/70 border border-red-200">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          কিস্তির মেয়াদ (Months)
+                        </label>
+                        <select
+                          value={emiMonths}
+                          onChange={(e) => {
+                            setEmiMonths(Number(e.target.value) || 1);
+                            setCustomMonthlyEmi('');
+                          }}
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        >
+                          <option value={3}>3 Months (৩ মাস)</option>
+                          <option value={4}>4 Months (৪ মাস)</option>
+                          <option value={6}>6 Months (৬ মাস)</option>
+                          <option value={9}>9 Months (৯ মাস)</option>
+                          <option value={12}>12 Months (১২ মাস)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          মাসিক কিস্তি / Monthly EMI (৳)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={customMonthlyEmi === '' ? autoMonthlyEmi : customMonthlyEmi}
+                          onChange={(e) => setCustomMonthlyEmi(e.target.value)}
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        অতিরিক্ত ছাড় / Extra Discount (৳)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={extraDiscount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setExtraDiscount(val);
+                          syncSingleTxAmount(Math.max(0, subtotal - itemDiscountTotal - val));
+                        }}
+                        className="memo-font-num w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div className="p-3 rounded-lg bg-[#111827] text-white grid grid-cols-3 gap-2 text-center text-xs">
+                    {isEmiSale ? (
+                      <>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মোট টাকা</div>
+                          <div className="memo-font-num font-extrabold text-white">
+                            ৳ {formatMoney(grossTotal)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">ডাউন পেমেন্ট</div>
+                          <div className="memo-font-num font-bold text-emerald-400">
+                            ৳ {formatMoney(paidAmount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মাসিক কিস্তি</div>
+                          <div className="memo-font-num font-bold text-[#EF4444]">
+                            ৳ {formatMoney(effectiveMonthlyEmi)}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মোট টাকা</div>
+                          <div className="memo-font-num font-extrabold text-white">
+                            ৳ {formatMoney(subtotal)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">ছাড়</div>
+                          <div className="memo-font-num font-bold text-[#EF4444]">
+                            - ৳ {formatMoney(totalDiscount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">পরিশোধিত</div>
+                          <div className="memo-font-num font-bold text-emerald-400">
+                            ৳ {formatMoney(paidAmount)}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* 5. Warranty Terms */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">
+                      ৫. ওয়ারেন্টি ও বিক্রয় শর্তাবলী
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setWarrantyTerms(DEFAULT_WARRANTY_TERMS)}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-[#111827] flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" /> ডিফল্ট
+                    </button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={warrantyTerms}
+                    onChange={(e) => setWarrantyTerms(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none leading-relaxed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: LIVE INVOICE PREVIEW */}
             <div
               id="memo-preview-column"
-              className="flex flex-col items-center w-full overflow-x-auto pb-6"
+              className="xl:col-span-8 flex flex-col items-center w-full overflow-x-auto pb-6"
             >
               {/* Quiet Preview Info Strip */}
               <div className="no-print w-full max-w-[210mm] flex items-center justify-between text-xs text-slate-600 mb-2.5 px-1">
                 <span className="font-semibold text-[#111827]">
-                  প্রিন্ট প্রিভিউ — {printFormat === 'a4' ? 'A4 Sales Invoice (1 Page)' : '80mm POS Thermal Receipt'}
+                  লাইভ প্রিভিউ — {printFormat === 'a4' ? 'A4 Sales Invoice (210mm × 297mm)' : '80mm POS Thermal Receipt'}
                 </span>
                 <span className="text-[11px] text-slate-500">
                   ফুল কালার প্রিন্ট · ওয়েবসাইট লিংক ছাড়াই পরিচ্ছন্ন রশিদ
@@ -710,15 +1303,15 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     <div>
                       {/* 1. Metallic Silver-to-Soft-Red Header Banner with Crimson Top Border */}
                       <div className="mt-invoice-header px-6 py-3.5 flex items-center justify-between gap-5">
-                        {/* Top-Left: Official Mehedy Telecom Logo (Blended Seamlessly) */}
-                        <div className="w-[240px] h-[74px] overflow-hidden flex items-center justify-start shrink-0">
+                        {/* Top-Left: Exact Official Mehedy Telecom Logo (Untouched) */}
+                        <div className="w-[218px] h-[88px] rounded-lg border border-[#CBD5E1] shadow-xs overflow-hidden flex items-center justify-center shrink-0 bg-[#B6BFBE]">
                           {!logoError ? (
                             <img
                               src={OFFICIAL_LOGO_SRC}
                               alt="Mehedy Telecom Official Logo"
                               referrerPolicy="no-referrer"
                               onError={() => setLogoError(true)}
-                              className="mt-official-logo w-full h-full object-contain"
+                              className="mt-official-logo"
                             />
                           ) : (
                             <MehedyTelecomLogo />
@@ -735,8 +1328,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                           >
                             SALES INVOICE / ক্যাশ মেমো
                           </div>
-                          <div className="text-[11.5px] font-bold text-[#111827] pt-0.5">
-                            {shopAddressBn} | {shopAddressEn}
+                          <div className="text-[12.5px] font-bold text-[#111827] pt-0.5">
+                            {shopAddressBn}
                           </div>
                           <div className="memo-font-num text-[13px] font-extrabold text-[#DC2626] tracking-wide">
                             Hotline: {shopPhone}
@@ -789,6 +1382,27 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                 </span>
                                 <span className="col-span-8 font-bold text-[#111827]">
                                   {emiAppName}
+                                </span>
+                              </div>
+                            )}
+                            {showAppCredentials && (appUsername.trim() || appPassword.trim()) && (
+                              <div className="grid grid-cols-12 gap-1 items-baseline">
+                                <span className="col-span-4 text-[#64748B] font-medium">
+                                  অ্যাপ লগইন (Login):
+                                </span>
+                                <span className="col-span-8 memo-font-num text-[11px] font-bold text-[#111827] flex flex-wrap gap-x-3 gap-y-0.5">
+                                  {appUsername.trim() && (
+                                    <span>
+                                      <span className="text-[#64748B] font-semibold">User:</span>{' '}
+                                      {appUsername.trim()}
+                                    </span>
+                                  )}
+                                  {appPassword.trim() && (
+                                    <span>
+                                      <span className="text-[#64748B] font-semibold">Pass:</span>{' '}
+                                      {appPassword.trim()}
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             )}
@@ -1120,14 +1734,14 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     <div>
                       {/* Header with Official Logo */}
                       <div className="text-center border-b-2 border-[#DC2626] pb-2.5">
-                        <div className="w-[180px] h-[52px] mx-auto overflow-hidden flex items-center justify-center mb-1">
+                        <div className="w-[180px] h-[74px] mx-auto rounded-md border border-[#CBD5E1] overflow-hidden flex items-center justify-center mb-1.5 bg-[#B6BFBE]">
                           {!logoError ? (
                             <img
                               src={OFFICIAL_LOGO_SRC}
                               alt="Mehedy Telecom"
                               referrerPolicy="no-referrer"
                               onError={() => setLogoError(true)}
-                              className="mt-official-logo w-full h-full object-contain"
+                              className="mt-official-logo"
                             />
                           ) : (
                             <MehedyTelecomLogo />
@@ -1181,6 +1795,28 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                         {customerAddress && (
                           <div>
                             <span className="text-[#64748B]">ঠিকানা:</span> {customerAddress}
+                          </div>
+                        )}
+                        {emiAppName && (
+                          <div>
+                            <span className="text-[#64748B]">অ্যাপ:</span>{' '}
+                            <strong>{emiAppName}</strong>
+                          </div>
+                        )}
+                        {showAppCredentials && (appUsername.trim() || appPassword.trim()) && (
+                          <div className="memo-font-num text-[10px]">
+                            {appUsername.trim() && (
+                              <span className="mr-2">
+                                <span className="text-[#64748B]">User:</span>{' '}
+                                <strong>{appUsername.trim()}</strong>
+                              </span>
+                            )}
+                            {appPassword.trim() && (
+                              <span>
+                                <span className="text-[#64748B]">Pass:</span>{' '}
+                                <strong>{appPassword.trim()}</strong>
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
