@@ -659,11 +659,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           border-left: 3px solid #DC2626 !important;
         }
 
-        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, guaranteed 1-page print without edge clipping) */
+        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, exact equal top/left/right margins) */
         .receipt-a4 {
           width: 210mm;
-          min-height: 278mm;
-          padding: 8mm 10mm;
+          min-height: 280mm;
+          padding: 13mm 13mm 12mm 13mm;
           box-sizing: border-box;
           background: #FFFFFF !important;
           box-shadow: 0 22px 50px -16px rgba(17, 24, 39, 0.25), 0 0 0 1px rgba(17, 24, 39, 0.08);
@@ -673,7 +673,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
         }
         .receipt-a4-frame {
           flex: 1;
-          min-height: 262mm;
+          min-height: 255mm;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
@@ -758,13 +758,16 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             margin: 0 auto !important;
             border-radius: 0 !important;
           }
-          .receipt-a4 {
+          #receipt-paper.receipt-a4 {
             width: 100% !important;
-            max-width: 204mm !important;
+            max-width: 210mm !important;
             height: auto !important;
             min-height: 0 !important;
             max-height: 277mm !important;
-            padding: 7mm 11mm !important;
+            padding-top: 13mm !important;
+            padding-right: 13mm !important;
+            padding-bottom: 12mm !important;
+            padding-left: 13mm !important;
             margin: 0 auto !important;
             overflow: hidden !important;
             display: block !important;
@@ -773,20 +776,20 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
-          .receipt-a4-frame {
+          #receipt-paper .receipt-a4-frame {
             width: 100% !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
             height: auto !important;
-            min-height: 252mm !important;
-            max-height: 263mm !important;
+            min-height: 248mm !important;
+            max-height: 252mm !important;
             border: 1.5px solid #1E293B !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
-          .receipt-80mm {
+          #receipt-paper.receipt-80mm {
             width: 80mm !important;
             max-width: 80mm !important;
             min-height: auto !important;
