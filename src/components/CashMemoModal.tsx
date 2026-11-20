@@ -559,11 +559,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           border-left: 3px solid #DC2626 !important;
         }
 
-        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, locked strictly to 1 page on print) */
+        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, guaranteed 1-page print) */
         .receipt-a4 {
           width: 210mm;
-          min-height: 295mm;
-          padding: 8mm 9mm;
+          min-height: 278mm;
+          padding: 7mm 9mm;
           box-sizing: border-box;
           background: #FFFFFF !important;
           box-shadow: 0 22px 50px -16px rgba(17, 24, 39, 0.25), 0 0 0 1px rgba(17, 24, 39, 0.08);
@@ -573,7 +573,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
         }
         .receipt-a4-frame {
           flex: 1;
-          min-height: 279mm;
+          min-height: 264mm;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
@@ -607,7 +607,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           letter-spacing: 0.14em;
         }
 
-        /* Full-Color, Zero-Browser-URL, Strict Single-Page Print Engine */
+        /* Full-Color, Zero-Browser-URL, Guaranteed Single-Page Print Engine */
         @page {
           size: ${printFormat === 'pos80' ? '80mm auto' : 'A4 portrait'};
           margin: 0;
@@ -623,12 +623,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '100%'} !important;
             min-height: 0 !important;
-            height: ${printFormat === 'pos80' ? 'auto' : '294mm'} !important;
-            max-height: ${printFormat === 'pos80' ? 'none' : '294mm'} !important;
+            height: auto !important;
             background: #FFFFFF !important;
-            overflow: ${printFormat === 'pos80' ? 'visible' : 'hidden'} !important;
+            overflow: visible !important;
           }
           /* Hide the rest of the web app completely so zero extra blank pages appear */
           body > *:not(#cash-memo-print-root) {
@@ -642,14 +641,13 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             position: static !important;
             inset: auto !important;
             display: block !important;
-            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '100%'} !important;
             min-height: 0 !important;
-            height: ${printFormat === 'pos80' ? 'auto' : '294mm'} !important;
-            max-height: ${printFormat === 'pos80' ? 'none' : '294mm'} !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             max-width: none !important;
-            overflow: ${printFormat === 'pos80' ? 'visible' : 'hidden'} !important;
+            overflow: visible !important;
             background: #FFFFFF !important;
           }
           .no-print {
@@ -657,28 +655,33 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           }
           #receipt-paper {
             box-shadow: none !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             border-radius: 0 !important;
           }
           .receipt-a4 {
-            width: 210mm !important;
-            height: 294mm !important;
+            width: 100% !important;
+            max-width: 210mm !important;
+            height: auto !important;
             min-height: 0 !important;
-            max-height: 294mm !important;
-            padding: 8mm 9mm !important;
+            max-height: 266mm !important;
+            padding: 6mm 8mm !important;
             overflow: hidden !important;
-            display: flex !important;
-            flex-direction: column !important;
+            display: block !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
           .receipt-a4-frame {
-            height: 100% !important;
-            min-height: 0 !important;
-            max-height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            height: auto !important;
+            min-height: 246mm !important;
+            max-height: 254mm !important;
             overflow: hidden !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           .receipt-80mm {
             width: 80mm !important;
@@ -1447,53 +1450,35 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Right: Financial Summary Table */}
-                          <div className="col-span-5 border border-[#CBD5E1] rounded-lg overflow-hidden text-[11.5px] flex flex-col justify-between paper-white">
-                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
-                              <span className="text-[#475569] font-semibold">
-                                Sub Total / উপ-মোট
-                              </span>
-                              <span className="memo-font-num font-bold text-[#111827]">
-                                ৳ {formatMoney(subtotal)}
-                              </span>
-                            </div>
-
-                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
-                              <span className="text-[#475569] font-semibold">
-                                Discount / মোট ছাড়
-                              </span>
-                              <span className="memo-font-num font-bold text-[#DC2626]">
-                                - ৳ {formatMoney(totalDiscount)}
-                              </span>
-                            </div>
-
-                            <div className="mt-gross-row px-3.5 py-2.5 flex justify-between items-center border-y border-[#FECACA]">
-                              <span className="font-extrabold text-[#991B1B] text-[12.5px]">
+                          {/* Right: Financial Summary Table (3 Clean Rows) */}
+                          <div className="col-span-5 border border-[#CBD5E1] rounded-lg overflow-hidden text-[12px] flex flex-col justify-between paper-white">
+                            <div className="mt-gross-row flex-1 px-4 py-3 flex justify-between items-center border-b border-[#FECACA]">
+                              <span className="font-extrabold text-[#991B1B] text-[13px]">
                                 Gross Total / সর্বমোট
                               </span>
-                              <span className="memo-font-num font-extrabold text-[#DC2626] text-[14.5px]">
+                              <span className="memo-font-num font-extrabold text-[#DC2626] text-[15px]">
                                 ৳ {formatMoney(grossTotal)}
                               </span>
                             </div>
 
-                            <div className="px-3.5 py-2 flex justify-between items-center border-b border-[#E2E8F0]">
+                            <div className="flex-1 px-4 py-3 flex justify-between items-center border-b border-[#E2E8F0]">
                               <span className="text-[#475569] font-semibold">
                                 Paid Amount / জমা
                               </span>
-                              <span className="memo-font-num font-extrabold text-[#111827]">
+                              <span className="memo-font-num font-extrabold text-[#111827] text-[13.5px]">
                                 ৳ {formatMoney(paidAmount)}
                               </span>
                             </div>
 
                             <div
-                              className="px-3.5 py-2 flex justify-between items-center font-extrabold"
+                              className="flex-1 px-4 py-3 flex justify-between items-center font-extrabold"
                               style={{
                                 backgroundColor: outstanding > 0 ? '#FEF2F2' : '#F8FAFC',
                                 color: outstanding > 0 ? '#DC2626' : '#065F46',
                               }}
                             >
                               <span>Outstanding / বকেয়া</span>
-                              <span className="memo-font-num text-[12.5px]">
+                              <span className="memo-font-num text-[13.5px]">
                                 ৳ {formatMoney(outstanding)}
                               </span>
                             </div>
@@ -1702,35 +1687,23 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                         })}
                       </div>
 
-                      {/* Totals */}
+                      {/* Totals (3 Clean Rows) */}
                       <div className="pt-2 space-y-1 text-[11px]">
-                        <div className="flex justify-between">
-                          <span className="text-[#475569]">Sub Total:</span>
-                          <span className="memo-font-num font-semibold">
-                            ৳{formatMoney(subtotal)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#475569]">Discount:</span>
-                          <span className="memo-font-num font-semibold text-[#DC2626]">
-                            - ৳{formatMoney(totalDiscount)}
-                          </span>
-                        </div>
                         <div className="mt-gross-row flex justify-between text-xs font-extrabold text-[#991B1B] px-2 py-1 rounded border border-[#FECACA]">
-                          <span>Gross Total:</span>
+                          <span>Gross Total / সর্বমোট:</span>
                           <span className="memo-font-num text-[#DC2626]">
                             ৳{formatMoney(grossTotal)}
                           </span>
                         </div>
                         <div className="flex justify-between font-bold">
-                          <span>Paid Amount:</span>
+                          <span>Paid Amount / জমা:</span>
                           <span className="memo-font-num">৳{formatMoney(paidAmount)}</span>
                         </div>
                         <div
                           className="flex justify-between font-extrabold"
                           style={{ color: outstanding > 0 ? '#DC2626' : '#047857' }}
                         >
-                          <span>Outstanding:</span>
+                          <span>Outstanding / বকেয়া:</span>
                           <span className="memo-font-num">৳{formatMoney(outstanding)}</span>
                         </div>
                         <div className="text-[9px] text-[#334155] pt-1 border-t border-dotted border-[#CBD5E1] space-y-0.5">
