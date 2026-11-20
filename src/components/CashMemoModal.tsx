@@ -659,11 +659,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           border-left: 3px solid #DC2626 !important;
         }
 
-        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, exact equal top/left/right margins) */
+        /* A4 Sales Invoice Dimensions (210mm x 297mm screen preview, exact 0.5in gap on all 4 sides) */
         .receipt-a4 {
           width: 210mm;
-          min-height: 280mm;
-          padding: 13mm 13mm 12mm 13mm;
+          min-height: 297mm;
+          padding: 0.5in;
           box-sizing: border-box;
           background: #FFFFFF !important;
           box-shadow: 0 22px 50px -16px rgba(17, 24, 39, 0.25), 0 0 0 1px rgba(17, 24, 39, 0.08);
@@ -673,7 +673,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
         }
         .receipt-a4-frame {
           flex: 1;
-          min-height: 255mm;
+          min-height: calc(297mm - 1in);
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
@@ -723,7 +723,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            width: ${printFormat === 'pos80' ? '80mm' : '100%'} !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
             min-height: 0 !important;
             height: auto !important;
             background: #FFFFFF !important;
@@ -741,7 +741,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             position: static !important;
             inset: auto !important;
             display: block !important;
-            width: ${printFormat === 'pos80' ? '80mm' : '100%'} !important;
+            width: ${printFormat === 'pos80' ? '80mm' : '210mm'} !important;
             min-height: 0 !important;
             height: auto !important;
             margin: 0 !important;
@@ -759,18 +759,17 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
             border-radius: 0 !important;
           }
           #receipt-paper.receipt-a4 {
-            width: 100% !important;
+            width: 210mm !important;
             max-width: 210mm !important;
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: 277mm !important;
-            padding-top: 13mm !important;
-            padding-right: 13mm !important;
-            padding-bottom: 12mm !important;
-            padding-left: 13mm !important;
+            height: 295mm !important;
+            min-height: 295mm !important;
+            max-height: 295mm !important;
+            padding: 0.5in !important;
             margin: 0 auto !important;
+            box-sizing: border-box !important;
             overflow: hidden !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: avoid !important;
@@ -778,12 +777,13 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
           }
           #receipt-paper .receipt-a4-frame {
             width: 100% !important;
+            flex: 1 1 auto !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            max-height: 100% !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            height: auto !important;
-            min-height: 248mm !important;
-            max-height: 252mm !important;
             border: 1.5px solid #1E293B !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
@@ -1458,10 +1458,10 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
               {/* Quiet Preview Info Strip */}
               <div className="no-print w-full max-w-[210mm] flex items-center justify-between text-xs text-slate-600 mb-2.5 px-1">
                 <span className="font-semibold text-[#111827]">
-                  লাইভ প্রিভিউ — {printFormat === 'a4' ? 'A4 Sales Invoice (210mm × 297mm)' : '80mm POS Thermal Receipt'}
+                  লাইভ প্রিভিউ — {printFormat === 'a4' ? 'A4 Sales Invoice (0.5in চারপাশে মার্জিন)' : '80mm POS Thermal Receipt'}
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  ফুল কালার প্রিন্ট · ওয়েবসাইট লিংক ছাড়াই পরিচ্ছন্ন রশিদ
+                  ফুল কালার প্রিন্ট · ১ পেজ লকড
                 </span>
               </div>
 
