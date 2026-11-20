@@ -314,6 +314,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
   const [dateStr, setDateStr] = useState('');
   const [paymentType, setPaymentType] = useState('Cash');
   const [emiAppName, setEmiAppName] = useState('');
+  const [emiMonths, setEmiMonths] = useState<number>(6);
+  const [customMonthlyEmi, setCustomMonthlyEmi] = useState<string>('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
@@ -358,6 +360,8 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
     setDateStr(formattedDate);
     setPaymentType(sale.is_cash_sale ? 'Cash' : 'Installment');
     setEmiAppName(resolvedApp);
+    setEmiMonths(6);
+    setCustomMonthlyEmi('');
     setCustomerName(sale.customer_name || '');
     setCustomerPhone(sale.phone_number && sale.phone_number !== 'N/A' ? sale.phone_number : '');
     setCustomerAddress(sale.address && sale.address !== 'N/A' ? sale.address : '');
@@ -385,6 +389,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
 
   if (!isOpen || !sale) return null;
 
+  const isEmiSale = paymentType === 'Installment';
   const subtotal = items.reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0),
     0
@@ -394,6 +399,11 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
   const grossTotal = Math.max(0, subtotal - totalDiscount);
   const paidAmount = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
   const outstanding = Math.max(0, grossTotal - paidAmount);
+  const autoMonthlyEmi = emiMonths > 0 ? Math.round(outstanding / emiMonths) : outstanding;
+  const effectiveMonthlyEmi =
+    customMonthlyEmi.trim() !== ''
+      ? Math.max(0, Number(customMonthlyEmi) || 0)
+      : autoMonthlyEmi;
 
   const warrantyLines = (warrantyTerms || '')
     .split('\n')
@@ -401,6 +411,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
     .filter(Boolean);
 
   const syncSingleTxAmount = (nextGross: number) => {
+    if (isEmiSale) return;
     setTransactions((prev) => {
       if (prev.length === 1) {
         return [{ ...prev[0], amount: nextGross }];
@@ -1101,42 +1112,103 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                     ))}
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      অতিরিক্ত ছাড় / Extra Discount (৳)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={extraDiscount}
-                      onChange={(e) => {
-                        const val = Number(e.target.value) || 0;
-                        setExtraDiscount(val);
-                        syncSingleTxAmount(Math.max(0, subtotal - itemDiscountTotal - val));
-                      }}
-                      className="memo-font-num w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
-                    />
-                  </div>
+                  {isEmiSale ? (
+                    <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-lg bg-red-50/70 border border-red-200">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          কিস্তির মেয়াদ (Months)
+                        </label>
+                        <select
+                          value={emiMonths}
+                          onChange={(e) => {
+                            setEmiMonths(Number(e.target.value) || 1);
+                            setCustomMonthlyEmi('');
+                          }}
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        >
+                          <option value={3}>3 Months (৩ মাস)</option>
+                          <option value={4}>4 Months (৪ মাস)</option>
+                          <option value={6}>6 Months (৬ মাস)</option>
+                          <option value={9}>9 Months (৯ মাস)</option>
+                          <option value={12}>12 Months (১২ মাস)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          মাসিক কিস্তি / Monthly EMI (৳)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={customMonthlyEmi === '' ? autoMonthlyEmi : customMonthlyEmi}
+                          onChange={(e) => setCustomMonthlyEmi(e.target.value)}
+                          className="memo-font-num w-full px-2.5 py-1.5 text-xs font-bold rounded-md border border-slate-300 bg-white focus:border-[#DC2626] outline-none"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        অতিরিক্ত ছাড় / Extra Discount (৳)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={extraDiscount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setExtraDiscount(val);
+                          syncSingleTxAmount(Math.max(0, subtotal - itemDiscountTotal - val));
+                        }}
+                        className="memo-font-num w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 focus:border-[#DC2626] outline-none"
+                      />
+                    </div>
+                  )}
 
                   <div className="p-3 rounded-lg bg-[#111827] text-white grid grid-cols-3 gap-2 text-center text-xs">
-                    <div>
-                      <div className="text-[10px] text-slate-400">সর্বমোট</div>
-                      <div className="memo-font-num font-extrabold text-white">
-                        ৳ {formatMoney(grossTotal)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-400">জমা</div>
-                      <div className="memo-font-num font-bold text-emerald-400">
-                        ৳ {formatMoney(paidAmount)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-400">বকেয়া</div>
-                      <div className="memo-font-num font-bold text-[#EF4444]">
-                        ৳ {formatMoney(outstanding)}
-                      </div>
-                    </div>
+                    {isEmiSale ? (
+                      <>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মোট টাকা</div>
+                          <div className="memo-font-num font-extrabold text-white">
+                            ৳ {formatMoney(grossTotal)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">ডাউন পেমেন্ট</div>
+                          <div className="memo-font-num font-bold text-emerald-400">
+                            ৳ {formatMoney(paidAmount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মাসিক কিস্তি</div>
+                          <div className="memo-font-num font-bold text-[#EF4444]">
+                            ৳ {formatMoney(effectiveMonthlyEmi)}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="text-[10px] text-slate-400">মোট টাকা</div>
+                          <div className="memo-font-num font-extrabold text-white">
+                            ৳ {formatMoney(subtotal)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">ছাড়</div>
+                          <div className="memo-font-num font-bold text-[#EF4444]">
+                            - ৳ {formatMoney(totalDiscount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400">পরিশোধিত</div>
+                          <div className="memo-font-num font-bold text-emerald-400">
+                            ৳ {formatMoney(paidAmount)}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1450,38 +1522,77 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Right: Financial Summary Table (3 Clean Rows) */}
+                          {/* Right: Financial Summary Table (Cash vs EMI Dynamic 3 Rows) */}
                           <div className="col-span-5 border border-[#CBD5E1] rounded-lg overflow-hidden text-[12px] flex flex-col justify-between paper-white">
-                            <div className="mt-gross-row flex-1 px-4 py-3 flex justify-between items-center border-b border-[#FECACA]">
-                              <span className="font-extrabold text-[#991B1B] text-[13px]">
-                                Gross Total / সর্বমোট
-                              </span>
-                              <span className="memo-font-num font-extrabold text-[#DC2626] text-[15px]">
-                                ৳ {formatMoney(grossTotal)}
-                              </span>
-                            </div>
+                            {isEmiSale ? (
+                              <>
+                                <div className="mt-gross-row flex-1 px-4 py-3 flex justify-between items-center border-b border-[#FECACA]">
+                                  <span className="font-extrabold text-[#991B1B] text-[12.5px]">
+                                    Total Amount / মোট টাকা
+                                  </span>
+                                  <span className="memo-font-num font-extrabold text-[#DC2626] text-[14.5px]">
+                                    ৳ {formatMoney(grossTotal)}
+                                  </span>
+                                </div>
 
-                            <div className="flex-1 px-4 py-3 flex justify-between items-center border-b border-[#E2E8F0]">
-                              <span className="text-[#475569] font-semibold">
-                                Paid Amount / জমা
-                              </span>
-                              <span className="memo-font-num font-extrabold text-[#111827] text-[13.5px]">
-                                ৳ {formatMoney(paidAmount)}
-                              </span>
-                            </div>
+                                <div className="flex-1 px-4 py-3 flex justify-between items-center border-b border-[#E2E8F0]">
+                                  <span className="text-[#475569] font-semibold">
+                                    Down Payment / ডাউন পেমেন্ট
+                                  </span>
+                                  <span className="memo-font-num font-extrabold text-[#111827] text-[13.5px]">
+                                    ৳ {formatMoney(paidAmount)}
+                                  </span>
+                                </div>
 
-                            <div
-                              className="flex-1 px-4 py-3 flex justify-between items-center font-extrabold"
-                              style={{
-                                backgroundColor: outstanding > 0 ? '#FEF2F2' : '#F8FAFC',
-                                color: outstanding > 0 ? '#DC2626' : '#065F46',
-                              }}
-                            >
-                              <span>Outstanding / বকেয়া</span>
-                              <span className="memo-font-num text-[13.5px]">
-                                ৳ {formatMoney(outstanding)}
-                              </span>
-                            </div>
+                                <div
+                                  className="flex-1 px-4 py-3 flex justify-between items-center font-extrabold"
+                                  style={{
+                                    backgroundColor: '#FEF2F2',
+                                    color: '#DC2626',
+                                  }}
+                                >
+                                  <div>
+                                    <div>Monthly EMI / মাসিক কিস্তি</div>
+                                    <div className="text-[10px] font-semibold text-[#64748B]">
+                                      ({emiMonths} মাস)
+                                    </div>
+                                  </div>
+                                  <span className="memo-font-num text-[14px]">
+                                    ৳ {formatMoney(effectiveMonthlyEmi)}
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex-1 px-4 py-3 flex justify-between items-center border-b border-[#E2E8F0]">
+                                  <span className="text-[#475569] font-semibold">
+                                    Total Amount / মোট টাকা
+                                  </span>
+                                  <span className="memo-font-num font-extrabold text-[#111827] text-[13.5px]">
+                                    ৳ {formatMoney(subtotal)}
+                                  </span>
+                                </div>
+
+                                <div className="flex-1 px-4 py-3 flex justify-between items-center border-b border-[#E2E8F0]">
+                                  <span className="text-[#475569] font-semibold">
+                                    Discount Amount / ছাড়
+                                  </span>
+                                  <span className="memo-font-num font-bold text-[#DC2626] text-[13px]">
+                                    - ৳ {formatMoney(totalDiscount)}
+                                  </span>
+                                </div>
+
+                                <div
+                                  className="flex-1 px-4 py-3 flex justify-between items-center font-extrabold"
+                                  style={{ color: '#065F46', backgroundColor: '#ECFDF5' }}
+                                >
+                                  <span className="text-[12.5px]">Paid Amount / পরিশোধিত</span>
+                                  <span className="memo-font-num text-[14.5px]">
+                                    ৳ {formatMoney(paidAmount)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1514,7 +1625,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
 
                         {/* Right: Dynamic Rubber Stamp above Authorized Signature */}
                         <div className="col-span-4 flex flex-col items-center justify-center pb-1">
-                          {outstanding === 0 ? (
+                          {!isEmiSale && outstanding === 0 ? (
                             <div
                               className="mt-rubber-stamp px-5 py-1.5 rounded-md text-center select-none"
                               style={{
@@ -1530,6 +1641,22 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                                 পরিশোধিত · {dateStr}
                               </div>
                             </div>
+                          ) : isEmiSale ? (
+                            <div
+                              className="mt-rubber-stamp px-4 py-1.5 rounded-md text-center select-none"
+                              style={{
+                                borderColor: '#DC2626',
+                                color: '#DC2626',
+                                backgroundColor: 'rgba(254, 242, 242, 0.9)',
+                              }}
+                            >
+                              <div className="text-[15px] font-black leading-none tracking-[0.14em]">
+                                EMI / কিস্তি
+                              </div>
+                              <div className="memo-font-num text-[9px] font-extrabold mt-1">
+                                মাসিক: ৳ {formatMoney(effectiveMonthlyEmi)}
+                              </div>
+                            </div>
                           ) : (
                             <div
                               className="mt-rubber-stamp px-4 py-1.5 rounded-md text-center select-none"
@@ -1540,7 +1667,7 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                               }}
                             >
                               <div className="text-[15px] font-black leading-none tracking-[0.14em]">
-                                DUE / কিস্তি
+                                DUE / বকেয়া
                               </div>
                               <div className="memo-font-num text-[9px] font-extrabold mt-1">
                                 বকেয়া: ৳ {formatMoney(outstanding)}
@@ -1687,25 +1814,48 @@ export const CashMemoModal: React.FC<CashMemoModalProps> = ({
                         })}
                       </div>
 
-                      {/* Totals (3 Clean Rows) */}
+                      {/* Totals (Cash vs EMI Dynamic 3 Rows) */}
                       <div className="pt-2 space-y-1 text-[11px]">
-                        <div className="mt-gross-row flex justify-between text-xs font-extrabold text-[#991B1B] px-2 py-1 rounded border border-[#FECACA]">
-                          <span>Gross Total / সর্বমোট:</span>
-                          <span className="memo-font-num text-[#DC2626]">
-                            ৳{formatMoney(grossTotal)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between font-bold">
-                          <span>Paid Amount / জমা:</span>
-                          <span className="memo-font-num">৳{formatMoney(paidAmount)}</span>
-                        </div>
-                        <div
-                          className="flex justify-between font-extrabold"
-                          style={{ color: outstanding > 0 ? '#DC2626' : '#047857' }}
-                        >
-                          <span>Outstanding / বকেয়া:</span>
-                          <span className="memo-font-num">৳{formatMoney(outstanding)}</span>
-                        </div>
+                        {isEmiSale ? (
+                          <>
+                            <div className="mt-gross-row flex justify-between text-xs font-extrabold text-[#991B1B] px-2 py-1 rounded border border-[#FECACA]">
+                              <span>Total Amount / মোট টাকা:</span>
+                              <span className="memo-font-num text-[#DC2626]">
+                                ৳{formatMoney(grossTotal)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between font-bold">
+                              <span>Down Payment / ডাউন পেমেন্ট:</span>
+                              <span className="memo-font-num">৳{formatMoney(paidAmount)}</span>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-[#DC2626]">
+                              <span>Monthly EMI ({emiMonths}m):</span>
+                              <span className="memo-font-num">
+                                ৳{formatMoney(effectiveMonthlyEmi)}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between font-bold">
+                              <span>Total Amount / মোট টাকা:</span>
+                              <span className="memo-font-num">৳{formatMoney(subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between font-semibold text-[#DC2626]">
+                              <span>Discount Amount / ছাড়:</span>
+                              <span className="memo-font-num">
+                                - ৳{formatMoney(totalDiscount)}
+                              </span>
+                            </div>
+                            <div
+                              className="flex justify-between text-xs font-extrabold px-2 py-1 rounded border border-emerald-200"
+                              style={{ color: '#065F46', backgroundColor: '#ECFDF5' }}
+                            >
+                              <span>Paid Amount / পরিশোধিত:</span>
+                              <span className="memo-font-num">৳{formatMoney(paidAmount)}</span>
+                            </div>
+                          </>
+                        )}
                         <div className="text-[9px] text-[#334155] pt-1 border-t border-dotted border-[#CBD5E1] space-y-0.5">
                           <div>
                             <strong>In Words:</strong> {numberToEnglishWords(grossTotal)}
