@@ -37,6 +37,8 @@ export interface Sale {
   address: string;
   guarantor_number: string;
   emi_app?: string;
+  app_username?: string;
+  app_password?: string;
   product_id: string;
   product_name: string;
   color?: string;

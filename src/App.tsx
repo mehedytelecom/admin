@@ -571,6 +571,7 @@ export default function App() {
   const [isSaleProductOpen, setIsSaleProductOpen] = useState(false);
   const [saleTab, setSaleTab] = useState<'emi' | 'cash' | 'history'>('emi');
   const [memoModalSale, setMemoModalSale] = useState<Sale | null>(null);
+  const [memoAutoPrint, setMemoAutoPrint] = useState(false);
   const [isCashSaleOpen, setIsCashSaleOpen] = useState(false);
   const [isSaleListOpen, setIsSaleListOpen] = useState(false);
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
@@ -706,6 +707,8 @@ export default function App() {
     nid_number: '',
     address: '',
     guarantor_number: '',
+    app_username: '',
+    app_password: '',
     product_id: '',
     imei: '',
     imei2: '',
@@ -750,10 +753,15 @@ export default function App() {
     } catch {
       // ignore
     }
-    return ['Mobile Bazar', 'PalmPay', 'Sahaj'];
+    return ['E-Rin', 'Mobile Bazar', 'PalmPay', 'Sahaj'];
   });
   const [isCreatingEmiApp, setIsCreatingEmiApp] = useState(false);
   const [newEmiAppName, setNewEmiAppName] = useState('');
+
+  const isERinApp = (appName?: string): boolean => {
+    const normalized = (appName || '').trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    return normalized === 'erin' || normalized === 'ইঋণ' || normalized === 'ইরিন';
+  };
 
   const handleCreateEmiApp = async (onSelectApp?: (name: string) => void) => {
     const trimmed = newEmiAppName.trim();
@@ -1627,6 +1635,9 @@ export default function App() {
       const memoNumber = (newSale.memo_number || '').trim() || generateMemoNumber();
       const resolvedImei2 = (newSale.imei2 || '').trim() || (matchedUnit ? (matchedUnit.imei1 === soldImei ? (matchedUnit.imei2 || '') : matchedUnit.imei1) : '');
 
+      const selectedEmiApp = newSale.guarantor_number || '';
+      const skipAppCreds = isERinApp(selectedEmiApp);
+
       const salePayload = {
         memo_number: memoNumber,
         customer_name: newSale.customer_name || 'Walk-in Customer',
@@ -1634,8 +1645,10 @@ export default function App() {
         application_id: newSale.application_id || newSale.nid_number || '',
         nid_number: newSale.application_id || newSale.nid_number || '',
         address: newSale.address || 'N/A',
-        guarantor_number: newSale.guarantor_number || '',
-        emi_app: newSale.guarantor_number || '',
+        guarantor_number: selectedEmiApp,
+        emi_app: selectedEmiApp,
+        app_username: skipAppCreds ? '' : (newSale.app_username || '').trim(),
+        app_password: skipAppCreds ? '' : (newSale.app_password || '').trim(),
         product_id: product.id,
         product_name: product.name,
         color: newSale.color || matchedUnit?.color || (soldImei && product.imei_colors?.[soldImei]) || product.color || '',
@@ -1683,6 +1696,8 @@ export default function App() {
         nid_number: '',
         address: '',
         guarantor_number: '',
+        app_username: '',
+        app_password: '',
         product_id: '',
         imei: '',
         imei2: '',
@@ -1697,6 +1712,7 @@ export default function App() {
       localStorage.removeItem('draft_newSale');
       setUploadProgress({});
       setIsSaleProductOpen(false);
+      setMemoAutoPrint(true);
       setMemoModalSale(createdSale);
     } catch (error: any) {
       console.error('Failed to record sale:', error);
@@ -1812,6 +1828,7 @@ export default function App() {
       localStorage.removeItem('draft_cashSale');
       setIsCashSaleOpen(false);
       setIsSaleProductOpen(false);
+      setMemoAutoPrint(true);
       setMemoModalSale(createdSale);
     } catch (error) {
       console.error('Failed to record cash sale:', error);
@@ -1878,14 +1895,19 @@ export default function App() {
         updatedImageFileIds = [...updatedImageFileIds, ...newImageFileIds];
       }
 
+      const editedApp = editingSale.emi_app ?? editingSale.guarantor_number ?? '';
+      const skipEditedAppCreds = isERinApp(editedApp);
+
       await updateDoc(doc(db, 'sales', editingSale.id), {
         customer_name: editingSale.customer_name,
         phone_number: editingSale.phone_number,
         application_id: editingSale.application_id || editingSale.nid_number || '',
         nid_number: editingSale.application_id || editingSale.nid_number || '',
         address: editingSale.address,
-        guarantor_number: editingSale.emi_app ?? editingSale.guarantor_number ?? '',
-        emi_app: editingSale.emi_app ?? editingSale.guarantor_number ?? '',
+        guarantor_number: editedApp,
+        emi_app: editedApp,
+        app_username: skipEditedAppCreds ? '' : (editingSale.app_username || '').trim(),
+        app_password: skipEditedAppCreds ? '' : (editingSale.app_password || '').trim(),
         profit: Number(editingSale.profit),
         actual_sale_price: Number(editingSale.actual_sale_price || 0),
         sale_date: new Date(editingSale.sale_date).toISOString(),
@@ -2651,6 +2673,8 @@ export default function App() {
                         nid_number: '',
                         address: '',
                         guarantor_number: '',
+                        app_username: '',
+                        app_password: '',
                         product_id: '',
                         imei: '',
                         imei2: '',
@@ -3173,7 +3197,10 @@ export default function App() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => setMemoModalSale(sale)}
+                              onClick={() => {
+                                setMemoAutoPrint(false);
+                                setMemoModalSale(sale);
+                              }}
                               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                             >
                               <Printer className="w-3.5 h-3.5" />
@@ -4455,16 +4482,47 @@ export default function App() {
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Application ID</label>
-                      <input 
-                        required
-                        type="text"
-                        value={newSale.application_id || newSale.nid_number}
-                        onChange={e => setNewSale({...newSale, application_id: e.target.value, nid_number: e.target.value})}
-                        placeholder="অ্যাপ্লিকেশন আইডি লিখুন"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Application ID</label>
+                        <input 
+                          required
+                          type="text"
+                          value={newSale.application_id || newSale.nid_number}
+                          onChange={e => setNewSale({...newSale, application_id: e.target.value, nid_number: e.target.value})}
+                          placeholder="অ্যাপ্লিকেশন আইডি লিখুন"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+
+                      {!isERinApp(newSale.guarantor_number) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">
+                              User / Username {newSale.guarantor_number ? `(${newSale.guarantor_number})` : ''}
+                            </label>
+                            <input
+                              type="text"
+                              value={newSale.app_username || ''}
+                              onChange={e => setNewSale({ ...newSale, app_username: e.target.value })}
+                              placeholder="অ্যাপ ইউজার আইডি / নম্বর"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1">
+                              Password (পাসওয়ার্ড)
+                            </label>
+                            <input
+                              type="text"
+                              value={newSale.app_password || ''}
+                              onChange={e => setNewSale({ ...newSale, app_password: e.target.value })}
+                              placeholder="অ্যাপ পাসওয়ার্ড লিখুন"
+                              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -5226,7 +5284,10 @@ export default function App() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setMemoModalSale(sale)}
+                        onClick={() => {
+                          setMemoAutoPrint(false);
+                          setMemoModalSale(sale);
+                        }}
                         className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
                       >
                         <Printer className="w-4 h-4" />
@@ -6433,6 +6494,7 @@ export default function App() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setMemoAutoPrint(false);
                         setMemoModalSale(sale);
                       }}
                       className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
@@ -6510,6 +6572,25 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                  {!isERinApp(selectedSale.emi_app || selectedSale.guarantor_number) &&
+                    (selectedSale.app_username || selectedSale.app_password) && (
+                      <div className="flex items-start gap-3">
+                        <User className="w-5 h-5 text-indigo-500 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-gray-500">App Login Info (User &amp; Password)</p>
+                          {selectedSale.app_username && (
+                            <p className="text-sm font-bold text-gray-900">
+                              User: <span className="font-mono">{selectedSale.app_username}</span>
+                            </p>
+                          )}
+                          {selectedSale.app_password && (
+                            <p className="text-sm font-bold text-gray-900">
+                              Password: <span className="font-mono">{selectedSale.app_password}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -6607,7 +6688,10 @@ export default function App() {
               )}
               <button
                 type="button"
-                onClick={() => setMemoModalSale(selectedSale)}
+                onClick={() => {
+                  setMemoAutoPrint(false);
+                  setMemoModalSale(selectedSale);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
               >
                 <Printer className="w-4 h-4" /> মেমো দেখুন / Print
@@ -6698,6 +6782,34 @@ export default function App() {
                   )}
               </select>
             </div>
+            {!isERinApp(editingSale.emi_app || editingSale.guarantor_number) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    User / Username
+                  </label>
+                  <input
+                    type="text"
+                    value={editingSale.app_username || ''}
+                    onChange={e => setEditingSale({ ...editingSale, app_username: e.target.value })}
+                    placeholder="অ্যাপ ইউজার আইডি / নম্বর"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Password (পাসওয়ার্ড)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingSale.app_password || ''}
+                    onChange={e => setEditingSale({ ...editingSale, app_password: e.target.value })}
+                    placeholder="অ্যাপ পাসওয়ার্ড লিখুন"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Selling Price (৳)</label>
@@ -7630,9 +7742,13 @@ export default function App() {
 
       <CashMemoModal
         isOpen={!!memoModalSale}
-        onClose={() => setMemoModalSale(null)}
+        onClose={() => {
+          setMemoModalSale(null);
+          setMemoAutoPrint(false);
+        }}
         sale={memoModalSale}
         product={memoModalSale ? products.find(p => p.id === memoModalSale.product_id) : null}
+        autoPrint={memoAutoPrint}
       />
     </div>
   );
